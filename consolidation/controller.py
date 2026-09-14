@@ -33,6 +33,7 @@ class ConsolidationResult:
     best_validation_loss: float
     best_epoch: int
     epochs_executed: int
+    stop_reason: str
 
 
 class GoCLSController:
@@ -156,6 +157,8 @@ class GoCLSController:
 
         epochs_without_improvement = 0
 
+        stop_reason = "max_epochs_reached"
+
         for epoch in range(1, self.max_epochs + 1):
 
             # -------------------------------------------------
@@ -206,10 +209,8 @@ class GoCLSController:
             # 4. Stop if consolidation has stopped helping.
             # -------------------------------------------------
 
-            if (
-                epochs_without_improvement
-                > self.patience
-            ):
+            if epochs_without_improvement >= self.patience:
+                stop_reason = "validation_patience_exceeded"
                 break
 
         return ConsolidationResult(
@@ -218,4 +219,5 @@ class GoCLSController:
             best_validation_loss=best_validation_loss,
             best_epoch=best_epoch,
             epochs_executed=len(history),
+            stop_reason=stop_reason,
         )

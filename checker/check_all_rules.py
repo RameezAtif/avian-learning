@@ -60,8 +60,29 @@ for rule_name in RULES:
     )
 
     print(
-        "  Stability:",
-        result.stability.stability_variance,
+    "  First losses:",
+    result.replay_losses[:10],
     )
+
+    print(
+        "  Last losses:",
+        result.replay_losses[-5:],
+    )
+
+    if result.stability is None:
+        print(
+            "Stability: unavailable "
+            "(insufficient replay epochs)"
+        )
+    else:
+        print(
+            "Stability:",
+            result.stability.stability_variance,
+        )
+
+    print(
+    "Stop reason:",
+    result.stop_reason,
+)
 
     print()

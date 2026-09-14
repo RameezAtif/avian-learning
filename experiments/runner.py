@@ -35,7 +35,9 @@ class ExperimentResult:
 
     acquisition_epoch: int | None
 
-    stability: StabilityResult 
+    stability: StabilityResult | None
+
+    stop_reason: str
 
     best_validation_loss: float
 
@@ -277,11 +279,21 @@ def run_experiment(
     # 11. Calculate stability
     # ---------------------------------------------------------
 
-    stability = calculate_windowed_stability(
-        loss_history=replay_losses,
-        final_fraction=config.stability_fraction,
-        num_windows=config.stability_windows,
+    minimum_stability_epochs = int(
+    np.ceil(
+        config.stability_windows
+        / config.stability_fraction
     )
+)
+
+    if replay_losses.size < minimum_stability_epochs:
+        stability = None
+    else:
+        stability = calculate_windowed_stability(
+            loss_history=replay_losses,
+            final_fraction=config.stability_fraction,
+            num_windows=config.stability_windows,
+        )
 
     return ExperimentResult(
         learning_rule=learning_rule_name,
@@ -291,6 +303,7 @@ def run_experiment(
         validation_losses=validation_losses,
         acquisition_epoch=acquisition_epoch,
         stability=stability,
+        stop_reason=consolidation.stop_reason,
         best_validation_loss=(
             consolidation.best_validation_loss
         ),
