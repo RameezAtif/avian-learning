@@ -7,21 +7,20 @@ RULES = [
     "chl",
     "qpc",
     "hebbian",
-    "anti_hebbian",
 ]
 
 
 config = ExperimentConfig(
-    num_train_examples=500,
+    num_tutor_examples=50,
+    num_practice_examples=50,
     num_validation_examples=200,
     input_dim=100,
     hidden_dim=100,
-    snr=4.0,
     max_epochs=100,
     patience=10,
     replays_per_epoch=32,
     learning_rate=0.001,
-    acquisition_epsilon=0.01,
+    acquisition_improvement_fraction=0.50,
     stability_fraction=0.10,
     stability_windows=5,
     update_w2=False,

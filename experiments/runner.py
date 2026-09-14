@@ -7,7 +7,7 @@ from consolidation.controller import (
     GoCLSController,
 )
 from consolidation.replay import SleepReplay
-from data.teacher import generate_teacher_dataset
+from data.teacher import create_teacher, generate_teacher_experiences
 from learning.gradient_descent import GradientDescentRule
 from learning.plasticity import ContinuousPlasticityRule
 from memory.notebook import SparseHopfieldNotebook
@@ -27,13 +27,16 @@ class ExperimentResult:
     """
 
     learning_rule: str
-    snr: float
+    tutor_snr: float
+    practice_snr: float
     seed: int
 
     replay_losses: np.ndarray
     validation_losses: np.ndarray
 
     acquisition_epoch: int | None
+    acquisition_threshold: float
+    initial_validation_loss: float
 
     stability: StabilityResult | None
 
@@ -68,6 +71,7 @@ def create_learning_rule(
             eta=0.0,
             learning_rate=config.learning_rate,
             gradient_clip=config.gradient_clip,
+            update_w2=config.update_w2,
         )
 
     if learning_rule_name == "qpc":
@@ -77,6 +81,7 @@ def create_learning_rule(
             eta=0.0,
             learning_rate=config.learning_rate,
             gradient_clip=config.gradient_clip,
+            update_w2=config.update_w2,
         )
 
     if learning_rule_name == "hebbian":
@@ -86,6 +91,7 @@ def create_learning_rule(
             eta=0.1,
             learning_rate=config.learning_rate,
             gradient_clip=config.gradient_clip,
+            update_w2=config.update_w2,
         )
 
     if learning_rule_name == "anti_hebbian":
@@ -95,43 +101,12 @@ def create_learning_rule(
             eta=-0.1,
             learning_rate=config.learning_rate,
             gradient_clip=config.gradient_clip,
+            update_w2=config.update_w2,
         )
 
     raise ValueError(
         f"Unknown learning rule: {learning_rule_name}"
     )
-
-def create_validation_dataset(
-    x: np.ndarray,
-    teacher_weights: np.ndarray,
-    snr: float,
-    seed: int,
-):
-    """
-    Generate new validation inputs using the same teacher
-    weights as the training dataset.
-    """
-
-    rng = np.random.default_rng(seed)
-
-    input_dim = x.shape[1]
-
-    if np.isinf(snr):
-        noise_variance = 0.0
-    else:
-        noise_variance = 1.0 / (snr + 1.0)
-
-    noise = rng.normal(
-        loc=0.0,
-        scale=np.sqrt(noise_variance),
-        size=x.shape[0],
-    )
-
-    signal = x @ teacher_weights
-
-    y = signal + noise
-
-    return y
 
 def run_experiment(
     learning_rule_name: str,
@@ -145,36 +120,21 @@ def run_experiment(
     # 1. Generate training data
     # ---------------------------------------------------------
 
-    train = generate_teacher_dataset(
-        num_examples=config.num_train_examples,
-        input_dim=config.input_dim,
-        snr=config.snr,
-        seed=config.seed,
-    )
+    teacher = create_teacher(config.input_dim, seed=config.seed)
+    tutor = generate_teacher_experiences(teacher, config.num_tutor_examples,
+        1.0 / config.tutor_snr, config.seed + 1, "tutor")
+    practice = generate_teacher_experiences(teacher, config.num_practice_examples,
+        1.0 / config.practice_snr, config.seed + 2, "practice")
+    train_x, train_y = np.vstack((tutor.x, practice.x)), np.concatenate((tutor.y, practice.y))
 
     # ---------------------------------------------------------
     # 2. Generate validation data using SAME teacher
     # ---------------------------------------------------------
 
-    rng = np.random.default_rng(
-        config.seed + 1
-    )
-
-    validation_x = rng.normal(
-        loc=0.0,
-        scale=1.0 / np.sqrt(config.input_dim),
-        size=(
-            config.num_validation_examples,
-            config.input_dim,
-        ),
-    )
-
-    validation_y = create_validation_dataset(
-        x=validation_x,
-        teacher_weights=train.teacher_weights,
-        snr=config.snr,
-        seed=config.seed + 2,
-    )
+    evaluation_noise = 0.0 if np.isinf(config.evaluation_snr) else 1.0 / config.evaluation_snr
+    validation = generate_teacher_experiences(teacher, config.num_validation_examples,
+        evaluation_noise, config.seed + 3, "evaluation")
+    validation_x, validation_y = validation.x, validation.y
 
     # ---------------------------------------------------------
     # 3. Create Student
@@ -197,8 +157,8 @@ def run_experiment(
     )
 
     notebook.encode_batch(
-        x=train.x,
-        y=train.y,
+        x=train_x,
+        y=train_y,
     )
 
     # ---------------------------------------------------------
@@ -221,6 +181,7 @@ def run_experiment(
         replay_cycles=config.replay_cycles,
         replays_per_epoch=config.replays_per_epoch,
         update_w2=config.update_w2,
+        replay_mode=config.replay_mode,
     )
 
     # ---------------------------------------------------------
@@ -235,6 +196,8 @@ def run_experiment(
     )
 
     # ---------------------------------------------------------
+    initial_validation_loss = controller.validation_loss(student, validation_x, validation_y)
+
     # 8. Run consolidation
     # ---------------------------------------------------------
 
@@ -266,9 +229,8 @@ def run_experiment(
 
     acquisition_epoch = None
 
-    below_threshold = np.where(
-        replay_losses <= config.acquisition_epsilon
-    )[0]
+    acquisition_threshold = initial_validation_loss * (1.0 - config.acquisition_improvement_fraction)
+    below_threshold = np.where(validation_losses <= acquisition_threshold)[0]
 
     if below_threshold.size > 0:
         acquisition_epoch = int(
@@ -297,11 +259,14 @@ def run_experiment(
 
     return ExperimentResult(
         learning_rule=learning_rule_name,
-        snr=config.snr,
+        tutor_snr=config.tutor_snr,
+        practice_snr=config.practice_snr,
         seed=config.seed,
         replay_losses=replay_losses,
         validation_losses=validation_losses,
         acquisition_epoch=acquisition_epoch,
+        acquisition_threshold=acquisition_threshold,
+        initial_validation_loss=initial_validation_loss,
         stability=stability,
         stop_reason=consolidation.stop_reason,
         best_validation_loss=(

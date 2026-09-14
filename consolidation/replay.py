@@ -58,6 +58,7 @@ class SleepReplay:
         replay_cycles: int = 9,
         replays_per_epoch: int = 32,
         update_w2: bool = False,
+        replay_mode: str = "stored",
     ):
         if replay_cycles <= 0:
             raise ValueError(
@@ -76,6 +77,9 @@ class SleepReplay:
         self.replay_cycles = replay_cycles
         self.replays_per_epoch = replays_per_epoch
         self.update_w2 = update_w2
+        if replay_mode not in {"stored", "hopfield"}:
+            raise ValueError("replay_mode must be 'stored' or 'hopfield'.")
+        self.replay_mode = replay_mode
 
     @staticmethod
     def _calculate_loss(
@@ -111,9 +115,10 @@ class SleepReplay:
         # 1. Retrieve memories from Notebook
         # -----------------------------------------------------
 
-        replay_results = self.notebook.replay_batch(
-            num_replays=self.replays_per_epoch,
-            cycles=self.replay_cycles,
+        replay_results = (
+            self.notebook.replay_stored_batch(self.replays_per_epoch)
+            if self.replay_mode == "stored"
+            else self.notebook.replay_batch(self.replays_per_epoch, self.replay_cycles)
         )
 
         # -----------------------------------------------------

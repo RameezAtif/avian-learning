@@ -58,7 +58,7 @@ class ReplayResult:
 
 class SparseHopfieldNotebook:
     """
-    Sparse Hopfield Notebook for fast memory encoding and replay.
+    Sparse Hopfield Notebook for fast episodic encoding and replay.
 
     The Notebook stores sparse binary patterns and associates
     each pattern with a teacher-generated (x, y) experience.
@@ -69,6 +69,14 @@ class SparseHopfieldNotebook:
         2. Hebbian recurrent encoding
         3. Pattern retrieval through recurrent dynamics
         4. Association between Notebook memories and experiences
+
+    In the main Go-CLS experiment, the notebook is an episodic store whose
+    contents are faithfully reactivated (``replay_stored_batch``).  The
+    recurrent Hopfield dynamics remain a retrieval-quality diagnostic only:
+    random-cue retrieval can preferentially return a subset of stored
+    associations, so it is not used to choose training experiences unless
+    that retrieval process is itself the subject of an explicitly separate
+    experiment.
 
     Parameters
     ----------
@@ -386,6 +394,25 @@ class SparseHopfieldNotebook:
             )
 
         return results
+
+    def replay_stored_batch(self, num_replays: int) -> list[ReplayResult]:
+        """Uniformly reactivate stored experiences with faithful recall.
+
+        This operationalizes the Go-CLS assumption of accurate notebook
+        recall. Sampling is uniform over stored episodes; it deliberately
+        avoids the retrieval bias observed with random-cue Hopfield dynamics.
+        The dynamics method remains available as a diagnostic, but is not an
+        unverified source of training samples.
+        """
+        if num_replays <= 0:
+            raise ValueError("num_replays must be greater than 0.")
+        if not self.memories:
+            raise RuntimeError("Cannot retrieve from an empty Notebook.")
+        indices = self.rng.integers(0, len(self.memories), size=num_replays)
+        return [ReplayResult(
+            pattern=self.memories[int(i)].pattern.copy(), x=self.memories[int(i)].x.copy(),
+            y=self.memories[int(i)].y.copy(), memory_index=int(i), similarity=1.0,
+        ) for i in indices]
 
     def __len__(self) -> int:
         """

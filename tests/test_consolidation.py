@@ -170,3 +170,27 @@ def test_best_epoch_is_valid():
         0 <= result.best_epoch
         <= result.epochs_executed
     )
+
+
+def test_controller_restores_best_generalization_checkpoint():
+    (
+        _,
+        validation,
+        student,
+        _,
+        _,
+        controller,
+    ) = create_system()
+
+    result = controller.run(
+        x_validation=validation.x,
+        y_validation=validation.y,
+    )
+
+    restored_loss = controller.validation_loss(
+        student=student,
+        x_validation=validation.x,
+        y_validation=validation.y,
+    )
+
+    assert np.isclose(restored_loss, result.best_validation_loss)

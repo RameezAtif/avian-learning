@@ -33,6 +33,45 @@ class TeacherDataset:
     snr: float
     signal_variance: float
     noise_variance: float
+    condition: str = "unspecified"
+
+
+@dataclass(frozen=True)
+class Teacher:
+    """A fixed linear mapping shared by all experience conditions."""
+    weights: np.ndarray
+    signal_variance: float
+
+
+def create_teacher(input_dim: int, signal_variance: float = 1.0, seed: int | None = None) -> Teacher:
+    """Create one teacher; experience noise is deliberately separate."""
+    if input_dim <= 0:
+        raise ValueError("input_dim must be greater than 0.")
+    if signal_variance <= 0:
+        raise ValueError("signal_variance must be greater than 0.")
+    rng = np.random.default_rng(seed)
+    return Teacher(rng.normal(0.0, np.sqrt(signal_variance), input_dim), signal_variance)
+
+
+def generate_teacher_experiences(teacher: Teacher, num_examples: int, noise_variance: float,
+                                 seed: int | None = None, condition: str = "unspecified") -> TeacherDataset:
+    """Sample Gaussian experiences from an existing teacher.
+
+    Tutor and practice conditions share teacher weights and differ only in
+    output noise, as required by the proposal.
+    """
+    if num_examples <= 0:
+        raise ValueError("num_examples must be greater than 0.")
+    if noise_variance < 0:
+        raise ValueError("noise_variance must be non-negative.")
+    rng = np.random.default_rng(seed)
+    input_dim = teacher.weights.size
+    x = rng.normal(0.0, 1.0 / np.sqrt(input_dim), (num_examples, input_dim))
+    signal = x @ teacher.weights
+    noise = rng.normal(0.0, np.sqrt(noise_variance), num_examples)
+    snr = np.inf if noise_variance == 0 else teacher.signal_variance / noise_variance
+    return TeacherDataset(x, signal + noise, teacher.weights.copy(), noise, float(snr),
+                          float(np.var(signal)), float(np.var(noise)), condition)
 
 
 def generate_teacher_dataset(
@@ -72,8 +111,6 @@ def generate_teacher_dataset(
     if snr < 0:
         raise ValueError("snr must be non-negative or np.inf.")
 
-    rng = np.random.default_rng(seed)
-
     # ---------------------------------------------------------
     # 1. Convert the requested SNR into signal/noise variances
     # ---------------------------------------------------------
@@ -85,68 +122,8 @@ def generate_teacher_dataset(
         sigma_w_squared = snr / (snr + 1.0)
         sigma_epsilon_squared = 1.0 / (snr + 1.0)
 
-    sigma_w = np.sqrt(sigma_w_squared)
-    sigma_epsilon = np.sqrt(sigma_epsilon_squared)
-
-    # ---------------------------------------------------------
-    # 2. Generate the fixed teacher weights
-    # ---------------------------------------------------------
-
-    teacher_weights = rng.normal(
-        loc=0.0,
-        scale=sigma_w,
-        size=input_dim,
-    )
-
-    # ---------------------------------------------------------
-    # 3. Generate input patterns
-    #
-    #    Sun uses:
-    #
-    #        x_i ~ N(0, 1/N)
-    # ---------------------------------------------------------
-
-    x = rng.normal(
-        loc=0.0,
-        scale=1.0 / np.sqrt(input_dim),
-        size=(num_examples, input_dim),
-    )
-
-    # ---------------------------------------------------------
-    # 4. Generate the noiseless teacher signal
-    # ---------------------------------------------------------
-
-    signal = x @ teacher_weights
-
-    # ---------------------------------------------------------
-    # 5. Generate Gaussian output noise
-    # ---------------------------------------------------------
-
-    noise = rng.normal(
-        loc=0.0,
-        scale=sigma_epsilon,
-        size=num_examples,
-    )
-
-    # ---------------------------------------------------------
-    # 6. Produce the teacher output
-    # ---------------------------------------------------------
-
-    y = signal + noise
-
-    # ---------------------------------------------------------
-    # 7. Measure empirical statistics
-    # ---------------------------------------------------------
-
-    signal_variance = np.var(signal)
-    noise_variance = np.var(noise)
-
-    return TeacherDataset(
-        x=x,
-        y=y,
-        teacher_weights=teacher_weights,
-        noise=noise,
-        snr=snr,
-        signal_variance=signal_variance,
-        noise_variance=noise_variance,
-    )
+    # Backwards-compatible one-condition generator. New experiments should
+    # create one Teacher and sample multiple experience conditions from it.
+    teacher = create_teacher(input_dim, sigma_w_squared, seed)
+    return generate_teacher_experiences(teacher, num_examples, sigma_epsilon_squared,
+                                        None if seed is None else seed + 1)

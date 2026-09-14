@@ -7,15 +7,18 @@ class ExperimentConfig:
     Configuration for one complete experiment condition.
     """
 
-    num_train_examples: int = 1000
+    num_tutor_examples: int = 50
+    num_practice_examples: int = 50
     num_validation_examples: int = 500
 
     input_dim: int = 100
     hidden_dim: int = 100
 
-    snr: float = 4.0
+    tutor_snr: float = 20.0
+    practice_snr: float = 1.0
+    evaluation_snr: float = float("inf")
 
-    notebook_dim: int = 500
+    notebook_dim: int = 2000
     notebook_sparsity: float = 0.05
 
     replay_cycles: int = 9
@@ -28,12 +31,15 @@ class ExperimentConfig:
 
     learning_rate: float = 0.001
 
-    acquisition_epsilon: float = 0.01
+    acquisition_improvement_fraction: float = 0.50
 
     stability_fraction: float = 0.10
     stability_windows: int = 5
 
     update_w2: bool = False
+    # Faithful episodic replay is the primary Go-CLS condition. ``hopfield``
+    # is a retrieval-bias diagnostic, not a primary experimental condition.
+    replay_mode: str = "stored"
 
     gradient_clip: float | None = 1.0
 

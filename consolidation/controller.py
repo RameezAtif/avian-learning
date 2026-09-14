@@ -40,7 +40,7 @@ class GoCLSController:
     """
     Controls how long sleep replay/consolidation continues.
 
-    The controller implements validation-based early stopping:
+    The controller implements the Go-CLS supervisory approximation:
 
         replay
           ↓
@@ -48,9 +48,16 @@ class GoCLSController:
           ↓
         validation evaluation
           ↓
-        improvement?
+        held-out generalization improves?
           ├── yes → continue
-          └── no  → stop after patience is exhausted
+          └── no  → stop after patience is exhausted and restore the
+                    generalization-optimal student checkpoint
+
+    This regulates the *amount* of consolidation.  It is not a per-memory
+    SNR threshold: in Go-CLS, SNR specifies the predictability of the teacher
+    relationship and the optimal replay duration is inferred from
+    generalization dynamics.  The held-out set is therefore a modelling
+    supervisor, never replayed to the student.
 
     Parameters
     ----------
@@ -154,6 +161,8 @@ class GoCLSController:
 
         best_validation_loss = np.inf
         best_epoch = 0
+        best_w1 = self.replay.student.W1.copy()
+        best_w2 = self.replay.student.W2.copy()
 
         epochs_without_improvement = 0
 
@@ -199,6 +208,8 @@ class GoCLSController:
                 )
 
                 best_epoch = epoch
+                best_w1 = self.replay.student.W1.copy()
+                best_w2 = self.replay.student.W2.copy()
 
                 epochs_without_improvement = 0
 
@@ -212,6 +223,11 @@ class GoCLSController:
             if epochs_without_improvement >= self.patience:
                 stop_reason = "validation_patience_exceeded"
                 break
+
+        # The Go-CLS consolidation result is the point of best estimated
+        # generalization, not the later checkpoint at which patience expired.
+        self.replay.student.W1[...] = best_w1
+        self.replay.student.W2[...] = best_w2
 
         return ConsolidationResult(
             history=history,

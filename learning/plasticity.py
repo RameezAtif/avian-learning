@@ -66,6 +66,7 @@ class ContinuousPlasticityRule:
         eta: float,
         learning_rate: float,
         gradient_clip: float | None = None,
+        update_w2: bool = False,
     ):
         if learning_rate <= 0:
             raise ValueError(
@@ -81,6 +82,7 @@ class ContinuousPlasticityRule:
         self.eta = eta
         self.learning_rate = learning_rate
         self.gradient_clip = gradient_clip
+        self.update_w2 = update_w2
 
     def calculate_update(
         self,
@@ -93,6 +95,15 @@ class ContinuousPlasticityRule:
     ) -> PlasticityUpdate:
         """
         Calculate the complete W1 plasticity update.
+
+        Important interpretation: with ``gamma=1`` and ``eta=0`` in this
+        linear feedforward student, the error-feedback term is exactly the
+        negative MSE gradient for W1.  It is consequently an
+        error-feedback surrogate for Contrastive Hebbian Learning (CHL), not
+        a two-phase recurrent/energy-based CHL implementation.  The project
+        keeps this condition as the proposal's CHL-labelled comparator, but
+        results must not be presented as distinguishing it from GD under the
+        current architecture.
 
         Parameters
         ----------
@@ -230,8 +241,17 @@ class ContinuousPlasticityRule:
 
         delta_w1 *= self.learning_rate
 
-        # W2 is deliberately left unchanged for now.
-        delta_w2 = np.zeros_like(w2)
+        # Output plasticity is explicit rather than silently ignored. Pure
+        # Hebbian learning has no supervised output update in this model;
+        # error-driven rules use the same prediction-error convention as W1.
+        if self.update_w2 and self.gamma != 0:
+            delta_w2 = self.learning_rate * self.gamma * (
+                error[np.newaxis, :] @ h
+            ) / batch_size
+            if self.gradient_clip is not None:
+                delta_w2 = np.clip(delta_w2, -self.gradient_clip, self.gradient_clip)
+        else:
+            delta_w2 = np.zeros_like(w2)
 
         return PlasticityUpdate(
             delta_w1=delta_w1,

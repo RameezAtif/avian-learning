@@ -1,6 +1,18 @@
 import numpy as np
 
-from data.teacher import generate_teacher_dataset
+from data.teacher import create_teacher, generate_teacher_dataset, generate_teacher_experiences
+
+
+def test_tutor_and_practice_share_teacher_but_have_distinct_noise():
+    teacher = create_teacher(input_dim=100, seed=42)
+    tutor = generate_teacher_experiences(teacher, 10000, noise_variance=0.01, seed=1, condition="tutor")
+    practice = generate_teacher_experiences(teacher, 10000, noise_variance=1.0, seed=2, condition="practice")
+
+    assert np.array_equal(tutor.teacher_weights, practice.teacher_weights)
+    assert tutor.condition == "tutor"
+    assert practice.condition == "practice"
+    assert tutor.noise_variance < practice.noise_variance
+    assert tutor.snr > practice.snr
 
 
 def test_dataset_shapes():

@@ -175,3 +175,15 @@ def test_w2_is_unchanged_for_now():
         update.delta_w2,
         0.0,
     )
+
+
+def test_error_driven_rule_can_update_w2_when_enabled():
+    dataset, student, output = create_test_case()
+    rule = ContinuousPlasticityRule(
+        gamma=1.0, eta=0.0, learning_rate=0.01, update_w2=True,
+    )
+    update = rule.calculate_update(
+        x=dataset.x, y=dataset.y, h=output.h_ff, y_hat=output.y_hat,
+        w1=student.W1, w2=student.W2,
+    )
+    assert np.any(update.delta_w2 != 0.0)

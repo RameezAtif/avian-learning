@@ -145,3 +145,17 @@ def test_replay_batch_returns_requested_number():
     )
 
     assert len(results) == 20
+
+
+def test_stored_replay_is_faithful_and_uniformly_addressable():
+    notebook = create_notebook()
+    rng = np.random.default_rng(42)
+    x = rng.normal(size=(10, 100))
+    y = rng.normal(size=10)
+    notebook.encode_batch(x, y)
+
+    results = notebook.replay_stored_batch(100)
+
+    assert len(results) == 100
+    assert all(result.similarity == 1.0 for result in results)
+    assert all(np.array_equal(result.x, x[result.memory_index]) for result in results)
