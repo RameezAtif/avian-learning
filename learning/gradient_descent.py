@@ -6,11 +6,111 @@ import numpy as np
 @dataclass
 class GradientUpdate:
     """
-    Stores the gradients calculated for the student network.
+    Stores gradients calculated for the student network.
     """
 
     grad_w1: np.ndarray
     grad_w2: np.ndarray
+
+
+class GradientDescentRule:
+    """
+    Gradient-descent learning rule using the same interface
+    as the continuous plasticity rule.
+
+    Parameters
+    ----------
+    learning_rate : float
+        Learning rate.
+
+    update_w2 : bool
+        Whether W2 should be updated.
+
+    gradient_clip : float or None
+        Optional element-wise clipping threshold.
+    """
+
+    def __init__(
+        self,
+        learning_rate: float,
+        update_w2: bool = True,
+        gradient_clip: float | None = None,
+    ):
+        if learning_rate <= 0:
+            raise ValueError(
+                "learning_rate must be greater than 0."
+            )
+
+        if gradient_clip is not None and gradient_clip <= 0:
+            raise ValueError(
+                "gradient_clip must be greater than 0."
+            )
+
+        self.learning_rate = learning_rate
+        self.update_w2 = update_w2
+        self.gradient_clip = gradient_clip
+
+    def calculate_update(
+        self,
+        x: np.ndarray,
+        y: np.ndarray,
+        h: np.ndarray,
+        y_hat: np.ndarray,
+        w1: np.ndarray,
+        w2: np.ndarray,
+    ):
+        """
+        Calculate one gradient-descent weight update.
+        """
+
+        gradients = calculate_gradients(
+            x=x,
+            y=y,
+            h=h,
+            y_hat=y_hat,
+            w2=w2,
+        )
+
+        delta_w1 = (
+            -self.learning_rate
+            * gradients.grad_w1
+        )
+
+        if self.update_w2:
+            delta_w2 = (
+                -self.learning_rate
+                * gradients.grad_w2
+            )
+        else:
+            delta_w2 = np.zeros_like(w2)
+
+        if self.gradient_clip is not None:
+            delta_w1 = np.clip(
+                delta_w1,
+                -self.gradient_clip,
+                self.gradient_clip,
+            )
+
+            delta_w2 = np.clip(
+                delta_w2,
+                -self.gradient_clip,
+                self.gradient_clip,
+            )
+
+        return GradientRuleUpdate(
+            delta_w1=delta_w1,
+            delta_w2=delta_w2,
+        )
+
+
+@dataclass
+class GradientRuleUpdate:
+    """
+    Stores gradient-descent weight updates.
+    """
+
+    delta_w1: np.ndarray
+    delta_w2: np.ndarray
 
 
 def mean_squared_error(

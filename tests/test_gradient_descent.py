@@ -169,3 +169,38 @@ def test_w2_can_be_kept_fixed():
     )
 
     assert np.array_equal(old_w2, new_w2)
+
+def test_gradient_descent_rule_returns_update():
+    from learning.gradient_descent import GradientDescentRule
+
+    dataset = generate_teacher_dataset(
+        num_examples=100,
+        input_dim=100,
+        snr=4,
+        seed=42,
+    )
+
+    student = Student(
+        input_dim=100,
+        hidden_dim=100,
+        seed=42,
+    )
+
+    output = student.forward(dataset.x)
+
+    rule = GradientDescentRule(
+        learning_rate=0.01,
+        update_w2=True,
+    )
+
+    update = rule.calculate_update(
+        x=dataset.x,
+        y=dataset.y,
+        h=output.h_ff,
+        y_hat=output.y_hat,
+        w1=student.W1,
+        w2=student.W2,
+    )
+
+    assert update.delta_w1.shape == student.W1.shape
+    assert update.delta_w2.shape == student.W2.shape
