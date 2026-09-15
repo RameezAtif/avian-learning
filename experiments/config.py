@@ -15,21 +15,21 @@ class ExperimentConfig:
     hidden_dim: int = 100
 
     tutor_snr: float = 20.0
-    practice_snr: float = 20.0
+    practice_snr: float = 3.0
     evaluation_snr: float = float("inf")
 
     notebook_dim: int = 2000
     notebook_sparsity: float = 0.05
 
     replay_cycles: int = 9
-    replays_per_epoch: int = 32
+    replays_per_epoch: int = 64
 
-    max_epochs: int = 100
+    max_epochs: int = 300
 
-    patience: int = 10
+    patience: int = 20
     min_delta: float = 1e-6
 
-    learning_rate: float = 0.1
+    learning_rate: float = 0.01
 
     acquisition_improvement_fraction: float = 0.50
 

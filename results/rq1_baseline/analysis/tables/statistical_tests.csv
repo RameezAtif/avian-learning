@@ -1,11 +1,11 @@
 rule_a,rule_b,rule_a_label,rule_b_label,n_paired_runs,mean_best_loss_difference_a_minus_b,wilcoxon_p_best_validation_loss,mean_relative_improvement_difference_a_minus_b,wilcoxon_p_relative_improvement,p_best_loss_bonferroni,p_improvement_bonferroni
 gradient_descent,chl,Gradient Descent,CHL,5,0.0,1.0,0.0,1.0,1.0,1.0
-gradient_descent,qpc,Gradient Descent,QPC,5,-0.0009242747807492125,0.0625,0.20377068431716702,0.0625,0.625,0.625
-gradient_descent,hebbian,Gradient Descent,Pure Hebbian,5,-0.0009158978611589208,0.0625,0.20200745024675432,0.0625,0.625,0.625
-gradient_descent,anti_hebbian,Gradient Descent,Anti-Hebbian,5,-0.000915877621292549,0.0625,0.20200248280549152,0.0625,0.625,0.625
-chl,qpc,CHL,QPC,5,-0.0009242747807492125,0.0625,0.20377068431716702,0.0625,0.625,0.625
-chl,hebbian,CHL,Pure Hebbian,5,-0.0009158978611589208,0.0625,0.20200745024675432,0.0625,0.625,0.625
-chl,anti_hebbian,CHL,Anti-Hebbian,5,-0.000915877621292549,0.0625,0.20200248280549152,0.0625,0.625,0.625
-qpc,hebbian,QPC,Pure Hebbian,5,8.376919590291631e-06,0.0625,-0.0017632340704127145,0.0625,0.625,0.625
-qpc,anti_hebbian,QPC,Anti-Hebbian,5,8.397159456663417e-06,0.0625,-0.001768201511675526,0.0625,0.625,0.625
-hebbian,anti_hebbian,Pure Hebbian,Anti-Hebbian,5,2.02398663717851e-08,0.3125,-4.967441262811464e-06,0.3125,1.0,1.0
+gradient_descent,qpc,Gradient Descent,QPC,5,-0.017154628994128028,0.0625,3.7866226727969767,0.0625,0.625,0.625
+gradient_descent,hebbian,Gradient Descent,Pure Hebbian,5,-0.008486711677375903,0.0625,1.8721694070430566,0.0625,0.625,0.625
+gradient_descent,anti_hebbian,Gradient Descent,Anti-Hebbian,5,-0.008504976815859499,0.0625,1.8756836961523071,0.0625,0.625,0.625
+chl,qpc,CHL,QPC,5,-0.017154628994128028,0.0625,3.7866226727969767,0.0625,0.625,0.625
+chl,hebbian,CHL,Pure Hebbian,5,-0.008486711677375903,0.0625,1.8721694070430566,0.0625,0.625,0.625
+chl,anti_hebbian,CHL,Anti-Hebbian,5,-0.008504976815859499,0.0625,1.8756836961523071,0.0625,0.625,0.625
+qpc,hebbian,QPC,Pure Hebbian,5,0.008667917316752127,0.0625,-1.9144532657539202,0.0625,0.625,0.625
+qpc,anti_hebbian,QPC,Anti-Hebbian,5,0.00864965217826853,0.0625,-1.9109389766446696,0.0625,0.625,0.625
+hebbian,anti_hebbian,Pure Hebbian,Anti-Hebbian,5,-1.8265138483597455e-05,0.3125,0.003514289109250601,0.4375,1.0,1.0

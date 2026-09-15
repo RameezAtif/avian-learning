@@ -1,0 +1,6 @@
+Rule,Final Validation Loss,Stability Variance
+Anti-Hebbian,0.4029 ± 0.0887,0.001721 ± 0.002333
+CHL (Surrogate),0.3775 ± 0.0818,0.001263 ± 0.001576
+Gradient Descent,0.3775 ± 0.0818,0.001263 ± 0.001576
+Pure Hebbian,0.4027 ± 0.0886,0.001714 ± 0.002322
+Quasi-Predictive Coding,0.4271 ± 0.0945,0.002232 ± 0.003196

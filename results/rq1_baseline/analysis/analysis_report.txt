@@ -6,11 +6,11 @@ Learning rules: gradient_descent, chl, qpc, hebbian, anti_hebbian
 
 MAIN PERFORMANCE SUMMARY
 --------------------------------------------------
-Gradient Descent: mean relative improvement = 0.202005% (SD = 0.022520%)
-CHL: mean relative improvement = 0.202005% (SD = 0.022520%)
-QPC: mean relative improvement = -0.001766% (SD = 0.000737%)
-Pure Hebbian: mean relative improvement = -0.000003% (SD = 0.000004%)
-Anti-Hebbian: mean relative improvement = 0.000002% (SD = 0.000003%)
+Gradient Descent: mean relative improvement = 5.279697% (SD = 0.875887%)
+CHL: mean relative improvement = 5.279697% (SD = 0.875887%)
+QPC: mean relative improvement = 1.493074% (SD = 0.569469%)
+Pure Hebbian: mean relative improvement = 3.407527% (SD = 0.704231%)
+Anti-Hebbian: mean relative improvement = 3.404013% (SD = 0.699045%)
 
 ACQUISITION
 --------------------------------------------------
@@ -24,14 +24,17 @@ STOPPING BEHAVIOUR
 --------------------------------------------------
 Gradient Descent: mean epochs = 100.00, patience stop rate = 0.00%, max epoch rate = 100.00%
 CHL: mean epochs = 100.00, patience stop rate = 0.00%, max epoch rate = 100.00%
-QPC: mean epochs = 11.00, patience stop rate = 100.00%, max epoch rate = 0.00%
-Pure Hebbian: mean epochs = 11.00, patience stop rate = 100.00%, max epoch rate = 0.00%
-Anti-Hebbian: mean epochs = 11.00, patience stop rate = 100.00%, max epoch rate = 0.00%
+QPC: mean epochs = 100.00, patience stop rate = 0.00%, max epoch rate = 100.00%
+Pure Hebbian: mean epochs = 100.00, patience stop rate = 0.00%, max epoch rate = 100.00%
+Anti-Hebbian: mean epochs = 100.00, patience stop rate = 0.00%, max epoch rate = 100.00%
 
 STABILITY
 --------------------------------------------------
-Gradient Descent: mean stability variance = 0.0119303826
-CHL: mean stability variance = 0.0119303826
+Gradient Descent: mean stability variance = 0.0102741750
+CHL: mean stability variance = 0.0102741750
+QPC: mean stability variance = 0.0119492679
+Pure Hebbian: mean stability variance = 0.0110826045
+Anti-Hebbian: mean stability variance = 0.0110847242
 
 PAIRED STATISTICAL TESTS
 --------------------------------------------------
@@ -54,7 +57,7 @@ QPC vs Pure Hebbian: Wilcoxon p (best loss) = 0.062500; Bonferroni p = 0.625000
 QPC vs Anti-Hebbian: Wilcoxon p (best loss) = 0.062500; Bonferroni p = 0.625000
     Wilcoxon p (relative improvement) = 0.062500; Bonferroni p = 0.625000
 Pure Hebbian vs Anti-Hebbian: Wilcoxon p (best loss) = 0.312500; Bonferroni p = 1.000000
-    Wilcoxon p (relative improvement) = 0.312500; Bonferroni p = 1.000000
+    Wilcoxon p (relative improvement) = 0.437500; Bonferroni p = 1.000000
 
 IMPORTANT INTERPRETATION NOTE
 --------------------------------------------------
