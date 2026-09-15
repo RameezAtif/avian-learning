@@ -1,0 +1,6 @@
+learning_rule,learning_rule_label,n_runs,mean_stability_variance,std_stability_variance,median_stability_variance,min_stability_variance,max_stability_variance
+gradient_descent,Gradient Descent,5,0.011930382593659842,0.00785267093798433,0.0119333635060414,0.0015749179364867,0.0235264219180277
+chl,CHL,5,0.011930382593659842,0.00785267093798433,0.0119333635060414,0.0015749179364867,0.0235264219180277
+qpc,QPC,0,,,,,
+hebbian,Pure Hebbian,0,,,,,
+anti_hebbian,Anti-Hebbian,0,,,,,

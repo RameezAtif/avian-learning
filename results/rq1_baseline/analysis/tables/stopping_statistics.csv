@@ -1,0 +1,6 @@
+learning_rule,learning_rule_label,n_runs,mean_epochs_executed,std_epochs_executed,patience_stopped,patience_stop_rate,max_epochs_reached,max_epochs_rate,other_stop_reason,other_stop_rate
+gradient_descent,Gradient Descent,5,100.0,0.0,0,0.0,5,1.0,0,0.0
+chl,CHL,5,100.0,0.0,0,0.0,5,1.0,0,0.0
+qpc,QPC,5,11.0,0.0,5,1.0,0,0.0,0,0.0
+hebbian,Pure Hebbian,5,11.0,0.0,5,1.0,0,0.0,0,0.0
+anti_hebbian,Anti-Hebbian,5,11.0,0.0,5,1.0,0,0.0,0,0.0

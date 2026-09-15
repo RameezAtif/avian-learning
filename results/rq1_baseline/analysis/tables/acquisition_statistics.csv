@@ -1,0 +1,6 @@
+learning_rule,learning_rule_label,n_runs,acquisition_successes,acquisition_success_rate,mean_acquisition_epoch,std_acquisition_epoch
+gradient_descent,Gradient Descent,5,0,0.0,,
+chl,CHL,5,0,0.0,,
+qpc,QPC,5,0,0.0,,
+hebbian,Pure Hebbian,5,0,0.0,,
+anti_hebbian,Anti-Hebbian,5,0,0.0,,
