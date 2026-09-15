@@ -812,459 +812,353 @@ def save_figure(filename):
 # PLOT 1 — VALIDATION LEARNING CURVES
 # ============================================================
 
-def plot_validation_learning_curves(history_summary):
+def aggregate_history(histories, metric):
+    """
+    Aggregate a history metric across seeds for each learning rule and epoch.
+    """
+    return (
+        histories
+        .groupby(["learning_rule", "epoch"])[metric]
+        .agg(["mean", "std", "count"])
+        .reset_index()
+    )
 
+
+def plot_validation_learning_curves(histories, output_dir):
+    """
+    Mean validation loss across seeds, with ±1 standard deviation.
+    """
     plt.figure(figsize=(10, 6))
 
+    aggregated = aggregate_history(histories, "validation_loss")
+
     for rule in ALL_RULES:
+        data = aggregated[aggregated["learning_rule"] == rule]
 
-        subset = history_summary[
-            history_summary["learning_rule"] == rule
-        ]
-
-        if subset.empty:
+        if data.empty:
             continue
 
-        x = subset["epoch"]
+        x = data["epoch"].to_numpy()
+        mean = data["mean"].to_numpy()
+        std = data["std"].fillna(0).to_numpy()
 
-        y = subset["validation_loss_mean"]
-
-        sem = subset["validation_loss_sem"]
-
-        plt.plot(
-            x,
-            y,
-            label=rule_label(rule)
-        )
-
+        plt.plot(x, mean, label=rule)
         plt.fill_between(
             x,
-            y - sem,
-            y + sem,
-            alpha=0.15
+            mean - std,
+            mean + std,
+            alpha=0.15,
         )
 
     plt.xlabel("Epoch")
-    plt.ylabel("Validation loss")
-    plt.title(
-        "RQ1: Validation Learning Curves"
-    )
-
+    plt.ylabel("Validation Loss")
+    plt.title("Validation Learning Curves")
     plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
 
-    plt.grid(
-        True,
-        alpha=0.25
-    )
+    path = output_dir / "validation_learning_curves.png"
+    plt.savefig(path, dpi=300)
+    plt.close()
 
-    save_figure(
-        "validation_learning_curves.png"
-    )
+    print(f"Saved figure: {path}")
 
 
-# ============================================================
-# PLOT 2 — REPLAY LEARNING CURVES
-# ============================================================
-
-def plot_replay_learning_curves(history_summary):
-
+def plot_replay_learning_curves(histories, output_dir):
+    """
+    Mean replay loss across seeds, with ±1 standard deviation.
+    """
     plt.figure(figsize=(10, 6))
 
+    aggregated = aggregate_history(histories, "replay_loss")
+
     for rule in ALL_RULES:
+        data = aggregated[aggregated["learning_rule"] == rule]
 
-        subset = history_summary[
-            history_summary["learning_rule"] == rule
-        ]
-
-        if subset.empty:
+        if data.empty:
             continue
 
-        x = subset["epoch"]
+        x = data["epoch"].to_numpy()
+        mean = data["mean"].to_numpy()
+        std = data["std"].fillna(0).to_numpy()
 
-        y = subset["replay_loss_mean"]
-
-        sem = subset["replay_loss_sem"]
-
-        plt.plot(
-            x,
-            y,
-            label=rule_label(rule)
-        )
-
+        plt.plot(x, mean, label=rule)
         plt.fill_between(
             x,
-            y - sem,
-            y + sem,
-            alpha=0.15
+            mean - std,
+            mean + std,
+            alpha=0.15,
         )
 
     plt.xlabel("Epoch")
-    plt.ylabel("Replay loss")
-    plt.title(
-        "RQ1: Replay Learning Curves"
-    )
-
+    plt.ylabel("Replay Loss")
+    plt.title("Replay Learning Curves")
     plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
 
-    plt.grid(
-        True,
-        alpha=0.25
-    )
+    path = output_dir / "replay_learning_curves.png"
+    plt.savefig(path, dpi=300)
+    plt.close()
 
-    save_figure(
-        "replay_learning_curves.png"
-    )
+    print(f"Saved figure: {path}")
 
 
-# ============================================================
-# PLOT 3 — NORMALIZED VALIDATION IMPROVEMENT
-# ============================================================
-
-def plot_normalized_validation_improvement(
-    histories,
-    summary
-):
-
-    merged = histories.merge(
-        summary[
-            [
-                "learning_rule",
-                "seed",
-                "initial_validation_loss",
-            ]
-        ],
-        on=["learning_rule", "seed"],
-        how="left"
-    )
-
-    merged["normalized_validation_loss"] = (
-        merged["validation_loss"]
-        /
-        merged["initial_validation_loss"]
-    )
-
-    grouped = (
-        merged
-        .groupby(
-            ["learning_rule", "epoch"],
-            as_index=False
-        )[
-            "normalized_validation_loss"
-        ]
-        .mean()
-    )
-
+def plot_normalized_validation_improvement(summary, output_dir):
+    """
+    Relative validation-loss improvement from initial to best validation loss.
+    """
     plt.figure(figsize=(10, 6))
 
+    data = summary.copy()
+
+    data["relative_improvement"] = (
+        (data["initial_validation_loss"] - data["best_validation_loss"])
+        / data["initial_validation_loss"]
+        * 100
+    )
+
     for rule in ALL_RULES:
+        rule_data = data[data["learning_rule"] == rule]
 
-        subset = grouped[
-            grouped["learning_rule"] == rule
-        ]
-
-        if subset.empty:
+        if rule_data.empty:
             continue
+
+        x = np.arange(len(rule_data))
 
         plt.plot(
-            subset["epoch"],
-            subset["normalized_validation_loss"],
-            label=rule_label(rule)
+            x,
+            rule_data["relative_improvement"].to_numpy(),
+            marker="o",
+            label=rule,
         )
 
-    plt.axhline(
-        1.0,
-        linestyle="--",
-        alpha=0.6
-    )
+    plt.axhline(0, linewidth=1)
 
-    plt.xlabel("Epoch")
-    plt.ylabel(
-        "Validation loss / initial validation loss"
-    )
-
-    plt.title(
-        "RQ1: Normalized Validation Loss"
-    )
-
+    plt.xlabel("Run")
+    plt.ylabel("Validation Loss Improvement (%)")
+    plt.title("Relative Validation Loss Improvement")
     plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
 
-    plt.grid(
-        True,
-        alpha=0.25
-    )
+    path = output_dir / "normalized_validation_improvement.png"
+    plt.savefig(path, dpi=300)
+    plt.close()
 
-    save_figure(
-        "normalized_validation_improvement.png"
-    )
+    print(f"Saved figure: {path}")
 
 
-# ============================================================
-# PLOT 4 — BEST VALIDATION LOSS
-# ============================================================
-
-def plot_best_validation_loss(summary):
-
+def plot_best_validation_loss(summary, output_dir):
+    """
+    Distribution of best validation loss across seeds.
+    """
     plt.figure(figsize=(10, 6))
 
     data = []
-
     labels = []
 
     for rule in ALL_RULES:
+        values = summary.loc[
+            summary["learning_rule"] == rule,
+            "best_validation_loss",
+        ].dropna().to_numpy()
 
-        values = summary[
-            summary["learning_rule"] == rule
-        ]["best_validation_loss"].dropna()
-
-        if len(values) == 0:
-            continue
-
-        data.append(values)
-        labels.append(rule_label(rule))
-
-    plt.boxplot(
-        data,
-        tick_labels=labels
-    )
-
-    plt.ylabel("Best validation loss")
-
-    plt.title(
-        "RQ1: Best Validation Loss Across Seeds"
-    )
-
-    plt.grid(
-        True,
-        axis="y",
-        alpha=0.25
-    )
-
-    save_figure(
-        "best_validation_loss.png"
-    )
-
-
-# ============================================================
-# PLOT 5 — RELATIVE IMPROVEMENT
-# ============================================================
-
-def plot_relative_improvement(summary):
-
-    plt.figure(figsize=(10, 6))
-
-    data = []
-
-    labels = []
-
-    for rule in ALL_RULES:
-
-        values = summary[
-            summary["learning_rule"] == rule
-        ][
-            "relative_validation_improvement_percent"
-        ].dropna()
-
-        if len(values) == 0:
-            continue
-
-        data.append(values)
-        labels.append(rule_label(rule))
-
-    plt.boxplot(
-        data,
-        tick_labels=labels
-    )
-
-    plt.axhline(
-        0,
-        linestyle="--",
-        alpha=0.6
-    )
-
-    plt.ylabel(
-        "Relative validation improvement (%)"
-    )
-
-    plt.title(
-        "RQ1: Relative Validation Improvement"
-    )
-
-    plt.grid(
-        True,
-        axis="y",
-        alpha=0.25
-    )
-
-    save_figure(
-        "relative_validation_improvement.png"
-    )
-
-
-# ============================================================
-# PLOT 6 — EPOCHS EXECUTED
-# ============================================================
-
-def plot_epochs_executed(summary):
-
-    plt.figure(figsize=(10, 6))
-
-    data = []
-
-    labels = []
-
-    for rule in ALL_RULES:
-
-        values = summary[
-            summary["learning_rule"] == rule
-        ]["epochs_executed"].dropna()
-
-        if len(values) == 0:
-            continue
-
-        data.append(values)
-        labels.append(rule_label(rule))
-
-    plt.boxplot(
-        data,
-        tick_labels=labels
-    )
-
-    plt.ylabel("Epochs executed")
-
-    plt.title(
-        "RQ1: Training Duration"
-    )
-
-    plt.grid(
-        True,
-        axis="y",
-        alpha=0.25
-    )
-
-    save_figure(
-        "epochs_executed.png"
-    )
-
-
-# ============================================================
-# PLOT 7 — STABILITY
-# ============================================================
-
-def plot_stability(summary):
-
-    plt.figure(figsize=(10, 6))
-
-    data = []
-
-    labels = []
-
-    for rule in ALL_RULES:
-
-        values = pd.to_numeric(
-            summary[
-                summary["learning_rule"] == rule
-            ]["stability"],
-            errors="coerce"
-        ).dropna()
-
-        if len(values) == 0:
-            continue
-
-        data.append(values)
-        labels.append(rule_label(rule))
+        if len(values) > 0:
+            data.append(values)
+            labels.append(rule_label(rule))
 
     if not data:
+        plt.close()
+        return
+
+    plt.boxplot(
+        data,
+        tick_labels=labels,
+    )
+
+    plt.xlabel("Learning Rule")
+    plt.ylabel("Best Validation Loss")
+    plt.title("Best Validation Loss by Learning Rule")
+    plt.grid(True, axis="y", alpha=0.3)
+    plt.tight_layout()
+
+    path = output_dir / "best_validation_loss.png"
+    plt.savefig(path, dpi=300)
+    plt.close()
+
+    print(f"Saved figure: {path}")
+
+
+def plot_acquisition_epoch(summary, output_dir):
+    """
+    Epoch at which the acquisition criterion was reached.
+
+    If no run reaches the acquisition criterion, explicitly
+    indicate this rather than producing a visually blank plot.
+    """
+    plt.figure(figsize=(10, 6))
+
+    data = []
+    labels = []
+
+    for rule in ALL_RULES:
+        values = pd.to_numeric(
+            summary.loc[
+                summary["learning_rule"] == rule,
+                "acquisition_epoch",
+            ],
+            errors="coerce",
+        ).dropna().to_numpy()
+
+        if len(values) > 0:
+            data.append(values)
+            labels.append(rule_label(rule))
+
+    if data:
+        plt.boxplot(
+            data,
+            tick_labels=labels,
+        )
+
+        plt.ylabel("Acquisition Epoch")
+
+    else:
         plt.text(
             0.5,
             0.5,
-            "No stability measurements available",
+            "No runs reached the acquisition criterion",
             ha="center",
-            va="center"
+            va="center",
+            transform=plt.gca().transAxes,
+            fontsize=14,
         )
 
-        plt.axis("off")
+        plt.xticks([])
+        plt.ylabel("Acquisition Epoch")
 
-    else:
+    plt.xlabel("Learning Rule")
+    plt.title("Acquisition Epoch by Learning Rule")
+    plt.grid(True, axis="y", alpha=0.3)
+    plt.tight_layout()
 
-        plt.boxplot(
-            data,
-            tick_labels=labels
-        )
+    path = output_dir / "acquisition_epoch.png"
+    plt.savefig(path, dpi=300)
+    plt.close()
 
-        plt.ylabel(
-            "Stability variance"
-        )
-
-        plt.title(
-            "RQ1: Stability Variance"
-        )
-
-        plt.grid(
-            True,
-            axis="y",
-            alpha=0.25
-        )
-
-    save_figure(
-        "stability_variance.png"
-    )
+    print(f"Saved figure: {path}")
 
 
-# ============================================================
-# PLOT 8 — ACQUISITION SUCCESS
-# ============================================================
+def plot_stability(summary, output_dir):
+    """
+    Stability variance across runs.
+    """
+    plt.figure(figsize=(10, 6))
 
-def plot_acquisition_success(summary):
-
-    counts = []
-
+    data = []
     labels = []
 
     for rule in ALL_RULES:
+        values = summary.loc[
+            summary["learning_rule"] == rule,
+            "stability",
+        ].dropna().to_numpy()
 
-        subset = summary[
-            summary["learning_rule"] == rule
-        ]
+        if len(values) > 0:
+            data.append(values)
+            labels.append(rule_label(rule))
 
-        if subset.empty:
-            continue
-
-        counts.append(
-            subset["acquisition_success"].sum()
+    if data:
+        plt.boxplot(
+            data,
+            tick_labels=labels,
         )
 
-        labels.append(
-            rule_label(rule)
-        )
+    plt.xlabel("Learning Rule")
+    plt.ylabel("Stability Variance")
+    plt.title("Stability Variance by Learning Rule")
+    plt.grid(True, axis="y", alpha=0.3)
+    plt.tight_layout()
 
+    path = output_dir / "stability_variance.png"
+    plt.savefig(path, dpi=300)
+    plt.close()
+
+    print(f"Saved figure: {path}")
+
+
+def plot_epochs_executed(summary, output_dir):
+    """
+    Number of epochs executed before stopping.
+    """
     plt.figure(figsize=(10, 6))
 
-    plt.bar(
-        labels,
-        counts
-    )
+    data = []
+    labels = []
 
-    plt.ylabel(
-        "Number of successful runs"
-    )
+    for rule in ALL_RULES:
+        values = summary.loc[
+            summary["learning_rule"] == rule,
+            "epochs_executed",
+        ].dropna().to_numpy()
 
-    plt.xlabel(
-        "Learning rule"
-    )
+        if len(values) > 0:
+            data.append(values)
+            labels.append(rule_label(rule))
 
-    plt.title(
-        "RQ1: Acquisition Success"
-    )
+    if data:
+        plt.boxplot(
+            data,
+            tick_labels=labels,
+        )
 
-    plt.grid(
-        True,
-        axis="y",
-        alpha=0.25
-    )
+    plt.xlabel("Learning Rule")
+    plt.ylabel("Epochs Executed")
+    plt.title("Training Duration by Learning Rule")
+    plt.grid(True, axis="y", alpha=0.3)
+    plt.tight_layout()
 
-    save_figure(
-        "acquisition_success.png"
-    )
+    path = output_dir / "epochs_executed.png"
+    plt.savefig(path, dpi=300)
+    plt.close()
+    print(f"Saved figure: {path}")
+
+
+def plot_best_epoch(summary, output_dir):
+    """
+    Epoch at which the best validation loss occurred.
+    """
+    plt.figure(figsize=(10, 6))
+
+    data = []
+    labels = []
+
+    for rule in ALL_RULES:
+        values = summary.loc[
+            summary["learning_rule"] == rule,
+            "best_epoch",
+        ].dropna().to_numpy()
+
+        if len(values) > 0:
+            data.append(values)
+            labels.append(rule_label(rule))
+
+    if data:
+        plt.boxplot(
+            data,
+            tick_labels=labels,
+        )
+
+    plt.xlabel("Learning Rule")
+    plt.ylabel("Best Epoch")
+    plt.title("Best Validation Epoch by Learning Rule")
+    plt.grid(True, axis="y", alpha=0.3)
+    plt.tight_layout()
+
+    path = output_dir / "best_epoch.png"
+    plt.savefig(path, dpi=300)
+    plt.close()
+    print(f"Saved figure: {path}")
 
 
 # ============================================================
@@ -1699,38 +1593,51 @@ def main():
         "Generating figures..."
     )
 
+    figures_dir = Path("results/rq1_baseline/analysis/figures")
+    figures_dir.mkdir(parents=True, exist_ok=True)
+
+
     plot_validation_learning_curves(
-        history_summary
+        histories,
+        figures_dir,
     )
 
     plot_replay_learning_curves(
-        history_summary
+        histories,
+        figures_dir,
     )
 
     plot_normalized_validation_improvement(
-        histories,
-        summary
+        summary,
+        figures_dir,
     )
 
     plot_best_validation_loss(
-        summary
+        summary,
+        figures_dir,
     )
 
-    plot_relative_improvement(
-        summary
-    )
-
-    plot_epochs_executed(
-        summary
+    plot_acquisition_epoch(
+        summary,
+        figures_dir,
     )
 
     plot_stability(
-        summary
+        summary,
+        figures_dir,
     )
 
-    plot_acquisition_success(
-        summary
+    plot_epochs_executed(
+        summary,
+        figures_dir,
     )
+
+    plot_best_epoch(
+        summary,
+        figures_dir,
+    )
+
+    
 
     # --------------------------------------------------------
     # REPORT
