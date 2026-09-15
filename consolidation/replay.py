@@ -5,6 +5,7 @@ import numpy as np
 from learning.plasticity import ContinuousPlasticityRule
 from memory.notebook import SparseHopfieldNotebook
 from models.student import Student
+from models.deep_student import DeepStudent
 
 
 @dataclass
@@ -52,7 +53,7 @@ class SleepReplay:
 
     def __init__(
         self,
-        student: Student,
+        student: Student | DeepStudent,
         notebook: SparseHopfieldNotebook,
         learning_rule: ContinuousPlasticityRule,
         replay_cycles: int = 9,
@@ -134,6 +135,8 @@ class SleepReplay:
             dtype=float,
         )
 
+        batch_size = replayed_x.shape[0]
+
         # -----------------------------------------------------
         # 3. Student forward pass
         # -----------------------------------------------------
@@ -154,6 +157,14 @@ class SleepReplay:
         # -----------------------------------------------------
         # 5. Calculate learning-rule update
         # -----------------------------------------------------
+        # For DeepStudent, use the combined effective feedback matrix (W3 @ W2)
+        # for W1's biological update. For shallow Student, use self.student.W2.
+        
+        feedback_w2 = (
+            self.student.get_effective_w2()
+            if isinstance(self.student, DeepStudent)
+            else self.student.W2
+        )
 
         update = self.learning_rule.calculate_update(
             x=replayed_x,
@@ -161,7 +172,7 @@ class SleepReplay:
             h=output.h_ff,
             y_hat=output.y_hat,
             w1=self.student.W1,
-            w2=self.student.W2,
+            w2=feedback_w2,
         )
 
         # -----------------------------------------------------
@@ -170,9 +181,29 @@ class SleepReplay:
 
         self.student.W1 += update.delta_w1
 
-        # W2 remains configurable.
-        if self.update_w2:
-            self.student.W2 += update.delta_w2
+        # -----------------------------------------------------
+        # 6b. Apply Readout Layer Updates (W2 / W3)
+        # -----------------------------------------------------
+        
+        error = replayed_y - output.y_hat
+
+        if isinstance(self.student, DeepStudent):
+            # DeepStudent: W2 and W3 learn via standard gradient descent
+            h_readout = output.h_readout
+            
+            # Gradients for W3 (shape: 1, readout_dim)
+            grad_w3 = -(error[np.newaxis, :] @ h_readout) / batch_size
+            self.student.W3 -= self.learning_rule.learning_rate * grad_w3
+
+            # Gradients for W2 (shape: readout_dim, cortex_dim)
+            error_at_readout = self.student.W3.T @ error[np.newaxis, :]
+            grad_w2 = -(error_at_readout @ output.h_ff) / batch_size
+            self.student.W2 -= self.learning_rule.learning_rate * grad_w2
+
+        else:
+            # Shallow Student: W2 remains configurable.
+            if self.update_w2:
+                self.student.W2 += update.delta_w2
 
         # -----------------------------------------------------
         # 7. Calculate mean Notebook retrieval quality
