@@ -4,6 +4,14 @@ RQ1 STATISTICAL AND GRAPHICAL ANALYSIS
 Number of runs: 25
 Learning rules: gradient_descent, chl, qpc, hebbian, anti_hebbian
 
+ACQUISITION CRITERION
+--------------------------------------------------
+Acquisition target per run:
+    target = initial - fraction * (initial - best_achievable)
+    fraction         = 0.5
+    best_achievable  = 0.2311808286
+    min_consecutive  = 3
+
 MAIN PERFORMANCE SUMMARY
 --------------------------------------------------
 Gradient Descent: mean relative improvement = 15.401031% (SD = 2.325955%)
@@ -14,8 +22,8 @@ Anti-Hebbian: mean relative improvement = 9.761859% (SD = 1.519883%)
 
 ACQUISITION
 --------------------------------------------------
-Gradient Descent: 0/5 successful (0.00%)
-CHL: 0/5 successful (0.00%)
+Gradient Descent: 1/5 successful (20.00%)
+CHL: 3/5 successful (60.00%)
 QPC: 0/5 successful (0.00%)
 Pure Hebbian: 0/5 successful (0.00%)
 Anti-Hebbian: 0/5 successful (0.00%)

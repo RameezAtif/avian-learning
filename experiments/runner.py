@@ -224,18 +224,14 @@ def run_experiment(
     )
 
     # ---------------------------------------------------------
-    # 10. Determine acquisition epoch
+    # 10. Acquisition is computed in the analysis phase.
+    #
+    # The threshold depends on the best loss achieved across
+    # all rules and seeds, so it cannot be defined per-run.
     # ---------------------------------------------------------
 
     acquisition_epoch = None
-
-    acquisition_threshold = initial_validation_loss * (1.0 - config.acquisition_improvement_fraction)
-    below_threshold = np.where(validation_losses <= acquisition_threshold)[0]
-
-    if below_threshold.size > 0:
-        acquisition_epoch = int(
-            below_threshold[0] + 1
-        )
+    acquisition_threshold = float("nan")
 
     # ---------------------------------------------------------
     # 11. Calculate stability

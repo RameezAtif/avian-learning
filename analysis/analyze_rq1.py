@@ -45,6 +45,7 @@ are added to summary.csv and histories.csv.
 """
 
 from pathlib import Path
+import sys
 import warnings
 
 import numpy as np
@@ -52,6 +53,18 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from scipy import stats
+
+# ------------------------------------------------------------
+# Ensure the project root is importable when this script is
+# run directly (e.g. `python analysis/analyze_rq1.py`).
+# Without this, `metrics` and other top-level packages are not
+# on sys.path.
+# ------------------------------------------------------------
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from metrics.acquisition import compute_all_acquisition_epochs
 
 
 # ============================================================
@@ -91,6 +104,23 @@ RULE_LABELS = {
     "hebbian": "Pure Hebbian",
     "anti_hebbian": "Anti-Hebbian",
 }
+
+# ------------------------------------------------------------
+# Acquisition criterion (Priority 2)
+#
+# Acquisition is defined as the first epoch where a run's
+# validation loss stays below a target for N consecutive epochs.
+# The target is defined as:
+#
+#   target = initial - fraction * (initial - best_achievable)
+#
+# where best_achievable is the best validation loss achieved by
+# ANY rule across ALL runs. This replaces the old per-run
+# "50% of initial loss" rule, which was arbitrary and unreachable.
+# ------------------------------------------------------------
+
+ACQUISITION_FRACTION = 0.50
+ACQUISITION_MIN_CONSECUTIVE = 3
 
 
 # ============================================================
@@ -167,6 +197,98 @@ def load_data():
         )
 
     return summary, histories
+
+
+def apply_principled_acquisition(summary, histories):
+    """
+    Recompute acquisition epochs and thresholds using a principled
+    criterion.
+
+    The target loss for a run is defined as:
+
+        target = initial_loss
+                 - ACQUISITION_FRACTION
+                   * (initial_loss - best_achievable_loss)
+
+    where ``best_achievable_loss`` is the minimum validation loss
+    achieved by ANY rule across ALL runs.
+
+    This overrides the acquisition_epoch and acquisition_threshold
+    columns produced by the runner (which used a per-run 50%-of-
+    initial rule). The new criterion adapts to the task's actual
+    achievable performance and does not require any rule to halve
+    its initial validation loss.
+    """
+    summary = summary.copy()
+
+    # ---- Build per-run loss arrays keyed by (rule, seed) ----
+    loss_arrays: dict[str, np.ndarray] = {}
+    initial_losses: dict[str, float] = {}
+
+    histories_sorted = histories.sort_values("epoch")
+
+    for (rule, seed), group in histories_sorted.groupby(
+        ["learning_rule", "seed"]
+    ):
+        key = f"{rule}_seed{seed}"
+        loss_arrays[key] = group["validation_loss"].to_numpy()
+
+        # Prefer the summary's recorded initial loss for consistency
+        # with what was actually reported by the runner.
+        summary_row = summary[
+            (summary["learning_rule"] == rule)
+            & (summary["seed"] == seed)
+        ]
+        if len(summary_row) == 1:
+            initial_losses[key] = float(
+                summary_row["initial_validation_loss"].iloc[0]
+            )
+        else:
+            initial_losses[key] = float(loss_arrays[key][0])
+
+    if not loss_arrays:
+        return summary
+
+    # ---- Compute acquisition epochs across all runs ----
+    acquisition_epochs = compute_all_acquisition_epochs(
+        histories=loss_arrays,
+        initial_losses=initial_losses,
+        fraction=ACQUISITION_FRACTION,
+        min_consecutive=ACQUISITION_MIN_CONSECUTIVE,
+    )
+
+    # ---- Best achievable loss across all runs ----
+    best_achievable = min(
+        float(np.min(arr)) for arr in loss_arrays.values()
+    )
+
+    # ---- Write new values back into summary ----
+    new_epochs = []
+    new_thresholds = []
+
+    for _, row in summary.iterrows():
+        key = f"{row['learning_rule']}_seed{row['seed']}"
+        epoch = acquisition_epochs.get(key)
+
+        target_loss = row["initial_validation_loss"] - (
+            ACQUISITION_FRACTION
+            * (row["initial_validation_loss"] - best_achievable)
+        )
+
+        new_epochs.append(epoch)
+        new_thresholds.append(target_loss)
+
+    summary["acquisition_epoch"] = new_epochs
+    summary["acquisition_threshold"] = new_thresholds
+
+    # Stash meta-information for reporting
+    summary.attrs["best_achievable_loss"] = best_achievable
+    summary.attrs["acquisition_fraction"] = ACQUISITION_FRACTION
+    summary.attrs["acquisition_min_consecutive"] = (
+        ACQUISITION_MIN_CONSECUTIVE
+    )
+
+    return summary
 
 
 def add_readable_rule_names(df):
@@ -1201,6 +1323,46 @@ def create_text_report(
     lines.append("")
 
     # --------------------------------------------------------
+    # ACQUISITION CRITERION NOTE
+    # --------------------------------------------------------
+
+    if "best_achievable_loss" in summary.attrs:
+
+        lines.append(
+            "ACQUISITION CRITERION"
+        )
+
+        lines.append(
+            "-" * 50
+        )
+
+        lines.append(
+            "Acquisition target per run:"
+        )
+
+        lines.append(
+            "    target = initial "
+            "- fraction * (initial - best_achievable)"
+        )
+
+        lines.append(
+            f"    fraction         = "
+            f"{summary.attrs['acquisition_fraction']}"
+        )
+
+        lines.append(
+            f"    best_achievable  = "
+            f"{summary.attrs['best_achievable_loss']:.10f}"
+        )
+
+        lines.append(
+            f"    min_consecutive  = "
+            f"{summary.attrs['acquisition_min_consecutive']}"
+        )
+
+        lines.append("")
+
+    # --------------------------------------------------------
     # MAIN SUMMARY
     # --------------------------------------------------------
 
@@ -1391,6 +1553,18 @@ def print_console_summary(
         f"Total runs: {len(summary)}"
     )
 
+    if "best_achievable_loss" in summary.attrs:
+        print()
+        print(
+            f"Acquisition criterion: "
+            f"{summary.attrs['acquisition_fraction'] * 100:.0f}% "
+            f"of max achievable improvement"
+        )
+        print(
+            f"Best achievable loss: "
+            f"{summary.attrs['best_achievable_loss']:.10f}"
+        )
+
     print()
 
     print(
@@ -1419,10 +1593,18 @@ def print_console_summary(
 
     for _, row in acquisition.iterrows():
 
+        mean_epoch = row['mean_acquisition_epoch']
+        mean_epoch_str = (
+            f"{mean_epoch:.2f}"
+            if pd.notna(mean_epoch)
+            else "n/a"
+        )
+
         print(
             f"{row['learning_rule_label']:<20} "
             f"{int(row['acquisition_successes'])}/"
-            f"{int(row['n_runs'])} successful"
+            f"{int(row['n_runs'])} successful   "
+            f"mean epoch = {mean_epoch_str}"
         )
 
     print()
@@ -1525,6 +1707,18 @@ def main():
 
     summary, histories = load_data()
 
+    # --------------------------------------------------------
+    # Priority 2: recompute acquisition using the principled
+    # criterion (best achievable loss across all runs).
+    # Must happen BEFORE calculate_derived_metrics so that
+    # acquisition_success is derived from the new values.
+    # --------------------------------------------------------
+
+    summary = apply_principled_acquisition(
+        summary,
+        histories,
+    )
+
     summary = calculate_derived_metrics(
         summary
     )
@@ -1593,9 +1787,8 @@ def main():
         "Generating figures..."
     )
 
-    figures_dir = Path("results/rq1_baseline/analysis/figures")
+    figures_dir = FIGURES_DIR
     figures_dir.mkdir(parents=True, exist_ok=True)
-
 
     plot_validation_learning_curves(
         histories,
@@ -1636,8 +1829,6 @@ def main():
         summary,
         figures_dir,
     )
-
-    
 
     # --------------------------------------------------------
     # REPORT
