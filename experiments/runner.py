@@ -10,6 +10,7 @@ from consolidation.replay import SleepReplay
 from data.teacher import create_teacher, generate_teacher_experiences
 from learning.gradient_descent import GradientDescentRule
 from learning.plasticity import ContinuousPlasticityRule
+from learning.chl import ContrastiveHebbianRule 
 from memory.notebook import SparseHopfieldNotebook
 from metrics.stability import (
     StabilityResult,
@@ -66,10 +67,9 @@ def create_learning_rule(
 
     if learning_rule_name == "chl":
 
-        return ContinuousPlasticityRule(
-            gamma=1.0,
-            eta=0.0,
+        return ContrastiveHebbianRule(
             learning_rate=config.learning_rate,
+            feedback_strength=1.0,          # alpha — start at 1.0, tune later
             gradient_clip=config.gradient_clip,
             update_w2=config.update_w2,
         )
