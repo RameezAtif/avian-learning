@@ -236,18 +236,18 @@ class ContinuousPlasticityRule:
             )
 
         # -----------------------------------------------------
-        # 6. Apply learning rate
+        # 6. Apply learning rate and output plasticity
         # -----------------------------------------------------
 
         delta_w1 *= self.learning_rate
 
-        # Output plasticity is explicit rather than silently ignored. Pure
-        # Hebbian learning has no supervised output update in this model;
-        # error-driven rules use the same prediction-error convention as W1.
-        if self.update_w2 and self.gamma != 0:
-            delta_w2 = self.learning_rate * self.gamma * (
+        # W2 MUST learn via standard supervised prediction error, 
+        # completely independent of the W1 gamma parameter.
+        if self.update_w2:
+            delta_w2 = self.learning_rate * (
                 error[np.newaxis, :] @ h
             ) / batch_size
+            
             if self.gradient_clip is not None:
                 delta_w2 = np.clip(delta_w2, -self.gradient_clip, self.gradient_clip)
         else:

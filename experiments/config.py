@@ -15,7 +15,7 @@ class ExperimentConfig:
     hidden_dim: int = 100
 
     tutor_snr: float = 20.0
-    practice_snr: float = 1.0
+    practice_snr: float = 20.0
     evaluation_snr: float = float("inf")
 
     notebook_dim: int = 2000
@@ -29,14 +29,14 @@ class ExperimentConfig:
     patience: int = 10
     min_delta: float = 1e-6
 
-    learning_rate: float = 0.001
+    learning_rate: float = 0.1
 
     acquisition_improvement_fraction: float = 0.50
 
     stability_fraction: float = 0.10
     stability_windows: int = 5
 
-    update_w2: bool = False
+    update_w2: bool = True
     # Faithful episodic replay is the primary Go-CLS condition. ``hopfield``
     # is a retrieval-bias diagnostic, not a primary experimental condition.
     replay_mode: str = "stored"
