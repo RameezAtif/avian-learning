@@ -24,11 +24,11 @@ from memory.notebook import SparseHopfieldNotebook
 
 
 def main():
-    config = ExperimentConfig(seed=42)
+    config = ExperimentConfig(seed=50)
     B = config.replays_per_epoch
 
     # Data
-    teacher = create_teacher(config.input_dim, seed=42)
+    teacher = create_teacher(config.input_dim, seed=50)
     tutor = generate_teacher_experiences(
         teacher, config.num_tutor_examples,
         1.0 / config.tutor_snr, 43, "tutor",
@@ -42,10 +42,10 @@ def main():
 
     # Student + notebook
     student = Student(input_dim=config.input_dim,
-                      hidden_dim=config.hidden_dim, seed=42)
+                      hidden_dim=config.hidden_dim, seed=50)
     notebook = SparseHopfieldNotebook(
         notebook_dim=config.notebook_dim,
-        sparsity=config.notebook_sparsity, seed=42,
+        sparsity=config.notebook_sparsity, seed=50,
     )
     notebook.encode_batch(x=train_x, y=train_y)
 
