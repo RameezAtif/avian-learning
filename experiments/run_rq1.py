@@ -54,7 +54,7 @@ LEARNING_RULES = [
     "anti_hebbian",
 ]
 
-SEEDS = [42, 43, 44, 45, 46]
+SEEDS = list(range(42, 72))   # 30 seeds, 150 total runs
 
 RESULTS_DIR = PROJECT_ROOT / "results" / "rq1_baseline"
 
