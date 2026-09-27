@@ -69,7 +69,8 @@ def create_learning_rule(
 
         return ContrastiveHebbianRule(
             learning_rate=config.learning_rate,
-            feedback_strength=1.0,          # alpha — start at 1.0, tune later
+            gamma=1.0,
+            eta=0.0,        
             gradient_clip=config.gradient_clip,
             update_w2=config.update_w2,
         )
