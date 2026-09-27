@@ -30,7 +30,7 @@ def generate_visuals():
     # Format the rule names for the legend
     rule_names = {
         'gradient_descent': 'Gradient Descent',
-        'chl': 'CHL (Surrogate)',
+        'chl': 'CHL ',
         'qpc': 'Quasi-Predictive Coding',
         'hebbian': 'Pure Hebbian',
         'anti_hebbian': 'Anti-Hebbian'
@@ -134,7 +134,7 @@ def generate_visuals():
 
     rule_names = {
         'gradient_descent': 'Gradient Descent',
-        'chl': 'CHL (Surrogate)',
+        'chl': 'CHL ',
         'qpc': 'Quasi-Predictive Coding',
         'hebbian': 'Pure Hebbian',
         'anti_hebbian': 'Anti-Hebbian'
@@ -211,7 +211,7 @@ def generate_visuals():
 
     rule_names = {
         'gradient_descent': 'Gradient Descent',
-        'chl': 'CHL (Surrogate)',
+        'chl': 'CHL ',
         'qpc': 'Quasi-Predictive Coding',
         'hebbian': 'Pure Hebbian',
         'anti_hebbian': 'Anti-Hebbian'
@@ -237,17 +237,11 @@ def generate_visuals():
         x='epoch', 
         y='normalized_loss', 
         hue='Rule', 
-        style='Rule',      # Uses distinct line styles (solid, dashed, dotted)
-        markers=True,      # Adds geometric markers
-        dashes=True,
-        markevery=30,      # Spaces out markers so it doesn't look cluttered
         palette=palette,
-        linewidth=2.5,
-        errorbar=None
+        linewidth=2.5
     )
     
-    # Add a horizontal line showing the 50% Go-CLS Acquisition Target
-    plt.axhline(y=0.5, color='red', linestyle='--', label='50% Acquisition Threshold', alpha=0.7)
+
     
     plt.title("Speed of Acquisition: Normalized Trajectory (SNR = 3)", pad=15, fontweight='bold')
     plt.xlabel("Epoch (Go-CLS Replay Cycles)", fontweight='bold')
