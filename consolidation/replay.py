@@ -185,6 +185,10 @@ class SleepReplay:
         # 6b. Apply Readout Layer Updates (W2 / W3)
         # -----------------------------------------------------
         
+ # For DeepStudent, learning_rule.delta_w2 is intentionally discarded.
+# W2 and W3 use supervised GD instead. See RQ2 methodology note.
+# With the Cao-literal CHL, this means RQ2's CHL = RQ2's GD.
+
         error = replayed_y - output.y_hat
 
         if isinstance(self.student, DeepStudent):

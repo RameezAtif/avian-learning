@@ -24,7 +24,7 @@ RESULTS_DIR = PROJECT_ROOT / "results" / "rq2_depth"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 RULES = ["gradient_descent", "chl", "qpc", "hebbian", "anti_hebbian"]
-SEEDS = [42, 43, 44, 45, 46]
+SEEDS = list(range(42, 72))   # 30 seeds
 
 
 def create_learning_rule(learning_rule_name: str, config: ExperimentConfig):
@@ -38,7 +38,8 @@ def create_learning_rule(learning_rule_name: str, config: ExperimentConfig):
     if learning_rule_name == "chl":
         return ContrastiveHebbianRule(
             learning_rate=config.learning_rate,
-            feedback_strength=1.0,
+            gamma=1.0,
+            eta=0.0,
             gradient_clip=config.gradient_clip,
             update_w2=config.update_w2,
         )
@@ -80,6 +81,11 @@ def run_rq2():
     print("=" * 72)
     print("STARTING RQ2: STUDENT DEPTH EXPERIMENT")
     print("=" * 72)
+    print()
+    print("NOTE: Deep student has ~15,050 parameters vs shallow ~10,100.")
+    print("      Depth effect is confounded with capacity.")
+    print("      RQ2's CHL will match RQ2's GD (Cao equation 3 identity).")
+    print()
 
     run_idx = 1
     total_runs = len(RULES) * len(SEEDS)
@@ -214,9 +220,58 @@ def run_rq2():
             )
             run_idx += 1
 
-    pd.DataFrame(summary_records).to_csv(RESULTS_DIR / "rq2_summary.csv", index=False)
-    pd.DataFrame(history_records).to_csv(RESULTS_DIR / "rq2_histories.csv", index=False)
-    print("\nRQ2 complete. Results saved to:", RESULTS_DIR)
+    summary_df = pd.DataFrame(summary_records)
+    history_df = pd.DataFrame(history_records)
+
+    # ------------------------------------------------------------------
+    # Priority 2: principled acquisition metric
+    # (best achievable loss computed across all rules and seeds)
+    # ------------------------------------------------------------------
+
+    from metrics.acquisition import compute_all_acquisition_epochs
+
+    loss_arrays = {}
+    initial_losses = {}
+    for (rule, seed), group in history_df.groupby(["learning_rule", "seed"]):
+        group = group.sort_values("epoch")
+        key = f"{rule}_seed{seed}"
+        loss_arrays[key] = group["validation_loss"].to_numpy()
+        initial_losses[key] = float(group["validation_loss"].iloc[0])
+
+    acq = compute_all_acquisition_epochs(
+        histories=loss_arrays,
+        initial_losses=initial_losses,
+        fraction=0.50,
+        min_consecutive=3,
+    )
+
+    summary_df["acquisition_epoch"] = summary_df.apply(
+        lambda r: acq.get(f"{r['learning_rule']}_seed{r['seed']}"),
+        axis=1,
+    )
+
+    summary_df.to_csv(RESULTS_DIR / "rq2_summary.csv", index=False)
+    history_df.to_csv(RESULTS_DIR / "rq2_histories.csv", index=False)
+
+    # ------------------------------------------------------------------
+    # Summary print
+    # ------------------------------------------------------------------
+
+    print()
+    print("=" * 72)
+    print("RQ2 SUMMARY — 30 seeds")
+    print("=" * 72)
+    print()
+    print(f"Runs: {len(summary_df)}")
+    print()
+    print(summary_df.groupby("learning_rule").agg(
+        mean_improvement=("relative_improvement_pct", "mean"),
+        std_improvement=("relative_improvement_pct", "std"),
+        acquisition_count=("acquisition_epoch", lambda x: x.notna().sum()),
+        total_runs=("acquisition_epoch", "size"),
+    ))
+    print()
+    print(f"Results: {RESULTS_DIR}")
 
 
 if __name__ == "__main__":
