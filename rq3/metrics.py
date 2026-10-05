@@ -30,15 +30,15 @@ def categorical_boundary_strength(h, labels):
 
 def progressive_differentiation(student, X, Y):
     """
-    SVD of the input-output correlation matrix Sigma = Y^T X.
+    SVD of the composite input-output transformation.
 
-    Singular values correspond to semantic modes. As training
-    progresses, smaller modes emerge later (Cao's progressive
-    differentiation).
+    Effective transformation: W2 @ W1 (K, D_in)
+    Ŷ = (W2 @ W1) @ X
 
-    Returns the singular values as a descending array.
+    Sigma = Y^T @ Ŷ = Y^T @ (W2 @ W1) @ X
     """
-    h, _ = student.forward(X)
-    Sigma = Y.T @ h                          # (K, D_h)
+    effective = student.W2 @ student.W1     # (K, D_in)
+    Y_hat = X @ effective.T                  # (B, K)
+    Sigma = Y.T @ Y_hat                       # (K, K)
     U, S, Vt = np.linalg.svd(Sigma, full_matrices=False)
     return S

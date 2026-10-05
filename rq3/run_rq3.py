@@ -110,15 +110,15 @@ def train_one(rule_name, seed, max_epochs=300, batch_size=16,
         # progressive differentiation: singular values
         sv = progressive_differentiation(student, val_x, val_y)
 
-        history.append({
+        row = {
             "epoch": epoch,
             "val_loss": val_loss,
             "boundary_strength": boundary,
-            "sv_0": float(sv[0]), "sv_1": float(sv[1]),
-            "sv_2": float(sv[2]), "sv_3": float(sv[3]),
-            "sv_4": float(sv[4]), "sv_5": float(sv[5]),
-            "sv_6": float(sv[6]), "sv_7": float(sv[7]),
-        })
+        }
+        # Log up to 8 singular values; pad with NaN if fewer exist
+        for i in range(8):
+            row[f"sv_{i}"] = float(sv[i]) if i < len(sv) else float("nan")
+        history.append(row)
 
     final_loss = history[-1]["val_loss"]
     improvement = 100.0 * (1 - final_loss / initial_loss)

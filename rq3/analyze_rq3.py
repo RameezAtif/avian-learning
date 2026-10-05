@@ -87,12 +87,16 @@ def plot_boundary_strength(histories):
 def plot_progressive_differentiation(histories):
     """Singular values over time, one panel per rule."""
     sv_cols = [f"sv_{i}" for i in range(8)]
+
+    # Only plot columns that actually exist in the data
+    present_cols = [c for c in sv_cols if c in histories.columns]
+
     fig, axes = plt.subplots(1, 5, figsize=(18, 4), sharey=True)
 
     for ax, rule in zip(axes, RULES):
         data = histories[histories["learning_rule"] == rule]
-        agg = data.groupby("epoch")[sv_cols].mean().reset_index()
-        for col in sv_cols:
+        agg = data.groupby("epoch")[present_cols].mean().reset_index()
+        for col in present_cols:
             ax.plot(agg["epoch"], agg[col], alpha=0.7)
         ax.set_title(LABELS[rule])
         ax.set_xlabel("Epoch")
