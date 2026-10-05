@@ -1,14 +1,12 @@
 """
-RQ3 — Few-shot acquisition experiment (BATCH / Go-CLS).
+RQ3 — Few-shot acquisition experiment (ONLINE / streaming).
 
-Varies the number of training examples per object and measures
-how quickly each learning rule acquires the tree structure.
-
-Answers the "rapid acquisition from short, repetitive sequences"
-sub-question of RQ3.
+Same as rq3/few_shot.py but trains one sample at a time.
+No notebook, no replay. Each epoch = one pass through the data,
+sample by sample.
 
 Run:
-    python rq3/few_shot.py
+    python rq3/few_shot_online.py
 """
 
 from pathlib import Path
@@ -22,14 +20,14 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from rq3.data import generate_tree_dataset, SimpleNotebook
+from rq3.data import generate_tree_dataset
 from rq3.models import VectorStudent
 from rq3.learning import (
     ContinuousPlasticityVector, ContrastiveHebbianVector,
 )
 
 
-RESULTS = PROJECT_ROOT / "rq3" / "results" / "few_shot"
+RESULTS = PROJECT_ROOT / "rq3" / "results" / "few_shot_online"
 RESULTS.mkdir(parents=True, exist_ok=True)
 
 RULES = ["gradient_descent", "chl", "qpc", "hebbian", "anti_hebbian"]
@@ -56,9 +54,7 @@ LEARNING_RATE = 0.01
 GRADIENT_CLIP = 1.0
 MAX_W_NORM = 20.0
 
-# Acquisition criterion:
-# First epoch where validation loss stays below 0.5 * initial loss
-# for at least MIN_CONSECUTIVE consecutive epochs.
+# Same acquisition criterion as the batch version.
 ACQUISITION_FRACTION = 0.5
 MIN_CONSECUTIVE = 5
 
@@ -113,9 +109,6 @@ def train_one(rule_name, seed, n_examples_per_object):
     train_x = np.array(train_x)
     train_y = np.array(train_y)
 
-    notebook = SimpleNotebook()
-    notebook.encode(train_x, train_y)
-
     student = VectorStudent(
         input_dim=8, hidden_dim=HIDDEN_DIM, output_dim=8, seed=seed,
     )
@@ -125,28 +118,31 @@ def train_one(rule_name, seed, n_examples_per_object):
     val_x, val_y = X, Y
     initial_loss = float(np.mean((val_y - student.forward(val_x)[1]) ** 2))
 
-    # Batch size: one full pass through the small dataset
-    batch_size = min(16, len(train_x))
-
     losses = []
     for epoch in range(MAX_EPOCHS):
-        xb, yb = notebook.sample(batch_size, rng)
-        h, y_hat = student.forward(xb)
-        upd = rule.calculate_update(
-            x=xb, y=yb, h=h, y_hat=y_hat,
-            w1=student.W1, w2=student.W2,
-        )
-        student.W1 += upd.delta_w1
-        student.W2 += upd.delta_w2
+        # Streaming: shuffle and present one sample at a time
+        order = rng.permutation(len(train_x))
+        for idx in order:
+            x_single = train_x[idx:idx + 1]     # shape (1, 8)
+            y_single = train_y[idx:idx + 1]     # shape (1, 8)
 
-        # Safety clip
-        w1n = np.linalg.norm(student.W1, "fro")
-        if w1n > MAX_W_NORM:
-            student.W1 *= MAX_W_NORM / w1n
-        w2n = np.linalg.norm(student.W2, "fro")
-        if w2n > MAX_W_NORM:
-            student.W2 *= MAX_W_NORM / w2n
+            h, y_hat = student.forward(x_single)
+            upd = rule.calculate_update(
+                x=x_single, y=y_single, h=h, y_hat=y_hat,
+                w1=student.W1, w2=student.W2,
+            )
+            student.W1 += upd.delta_w1
+            student.W2 += upd.delta_w2
 
+            # Safety clip
+            w1n = np.linalg.norm(student.W1, "fro")
+            if w1n > MAX_W_NORM:
+                student.W1 *= MAX_W_NORM / w1n
+            w2n = np.linalg.norm(student.W2, "fro")
+            if w2n > MAX_W_NORM:
+                student.W2 *= MAX_W_NORM / w2n
+
+        # Validate after each pass
         val_loss = float(np.mean((val_y - student.forward(val_x)[1]) ** 2))
         losses.append(val_loss)
 
@@ -189,12 +185,10 @@ def main():
                 print(f"[{count}/{total}] {rule} n={budget} seed={seed}")
                 result = train_one(rule, seed, budget)
 
-                # Summary row: everything except the losses array
                 summary_rows.append({
                     k: v for k, v in result.items() if k != "losses"
                 })
 
-                # History rows: per-epoch losses
                 for epoch_idx, loss in enumerate(result["losses"]):
                     history_rows.append({
                         "learning_rule": rule,
@@ -207,21 +201,21 @@ def main():
     summary_df = pd.DataFrame(summary_rows)
     history_df = pd.DataFrame(history_rows)
 
-    summary_df.to_csv(RESULTS / "few_shot_summary.csv", index=False)
-    history_df.to_csv(RESULTS / "few_shot_histories.csv", index=False)
+    summary_df.to_csv(RESULTS / "few_shot_online_summary.csv", index=False)
+    history_df.to_csv(RESULTS / "few_shot_online_histories.csv", index=False)
 
-    # ---------------- Print summary ----------------
     print()
     print("=" * 72)
-    print("FEW-SHOT ACQUISITION — mean improvement per (rule, budget)")
+    print("FEW-SHOT ONLINE — mean improvement per (rule, budget)")
     print("=" * 72)
     pivot_imp = summary_df.pivot_table(
         index="learning_rule", columns="n_examples_per_object",
         values="improvement_pct", aggfunc="mean",
     )
     print(pivot_imp.round(2))
+
     print()
-    print("FEW-SHOT ACQUISITION — mean acquisition epoch per (rule, budget)")
+    print("FEW-SHOT ONLINE — mean acquisition epoch per (rule, budget)")
     print("=" * 72)
     pivot_acq = summary_df.pivot_table(
         index="learning_rule", columns="n_examples_per_object",
@@ -239,7 +233,7 @@ def main():
                      label=LABELS[rule], color=COLORS[rule])
     axes[0].set_xlabel("Examples per object")
     axes[0].set_ylabel("Final improvement (%)")
-    axes[0].set_title("Few-shot (batch): how well each rule learns")
+    axes[0].set_title("Few-shot ONLINE: how well each rule learns")
     axes[0].legend()
     axes[0].grid(True, alpha=0.3)
 
@@ -250,18 +244,18 @@ def main():
                      label=LABELS[rule], color=COLORS[rule])
     axes[1].set_xlabel("Examples per object")
     axes[1].set_ylabel("Acquisition epoch")
-    axes[1].set_title("Few-shot (batch): how rapidly each rule acquires")
+    axes[1].set_title("Few-shot ONLINE: how rapidly each rule acquires")
     axes[1].legend()
     axes[1].grid(True, alpha=0.3)
 
     fig.tight_layout()
-    fig.savefig(RESULTS / "few_shot_results.png", dpi=300)
+    fig.savefig(RESULTS / "few_shot_online_results.png", dpi=300)
     plt.close(fig)
 
     print()
-    print(f"Saved: {RESULTS / 'few_shot_summary.csv'}")
-    print(f"Saved: {RESULTS / 'few_shot_histories.csv'}")
-    print(f"Saved: {RESULTS / 'few_shot_results.png'}")
+    print(f"Saved: {RESULTS / 'few_shot_online_summary.csv'}")
+    print(f"Saved: {RESULTS / 'few_shot_online_histories.csv'}")
+    print(f"Saved: {RESULTS / 'few_shot_online_results.png'}")
 
 
 if __name__ == "__main__":
