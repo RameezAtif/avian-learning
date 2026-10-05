@@ -168,6 +168,7 @@ def write_summary_csv(results: list[ExperimentResult]) -> None:
         "initial_validation_loss",
         "best_validation_loss",
         "best_epoch",
+        "final_validation_loss",      # <-- ADD THIS
         "acquisition_epoch",
         "acquisition_threshold",
         "stability",
