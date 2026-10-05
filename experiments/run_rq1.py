@@ -94,6 +94,7 @@ def result_to_summary_row(result: ExperimentResult) -> dict:
         "initial_validation_loss": result.initial_validation_loss,
         "best_validation_loss": result.best_validation_loss,
         "best_epoch": result.best_epoch,
+        "final_validation_loss": result.final_validation_loss,   # <-- ADD
         "acquisition_epoch": result.acquisition_epoch,
         "acquisition_threshold": result.acquisition_threshold,
         "stability": (

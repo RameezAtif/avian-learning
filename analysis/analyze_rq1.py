@@ -312,7 +312,7 @@ def calculate_derived_metrics(summary):
     # Absolute improvement in validation loss
     df["absolute_validation_improvement"] = (
         df["initial_validation_loss"]
-        - df["best_validation_loss"]
+        - df["final_validation_loss"]
     )
 
     # Relative improvement as a fraction

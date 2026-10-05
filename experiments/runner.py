@@ -47,6 +47,8 @@ class ExperimentResult:
 
     best_epoch: int
 
+    final_validation_loss: float          # <-- NEW
+
     epochs_executed: int
 
 def create_learning_rule(
@@ -234,6 +236,10 @@ def run_experiment(
     acquisition_epoch = None
     acquisition_threshold = float("nan")
 
+    improvement_pct = (
+        100.0 * (1 - consolidation.final_validation_loss / initial_validation_loss)
+    )
+
     # ---------------------------------------------------------
     # 11. Calculate stability
     # ---------------------------------------------------------
@@ -270,6 +276,9 @@ def run_experiment(
             consolidation.best_validation_loss
         ),
         best_epoch=consolidation.best_epoch,
+        final_validation_loss=(
+            consolidation.final_validation_loss
+        ),
         epochs_executed=(
             consolidation.epochs_executed
         ),

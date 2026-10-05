@@ -19,19 +19,29 @@ class ConsolidationResult:
         Validation loss measured after each replay epoch.
 
     best_validation_loss : float
-        Lowest validation loss observed.
+        Lowest validation loss observed across all epochs.
 
     best_epoch : int
         Epoch at which the lowest validation loss occurred.
 
+    final_validation_loss : float
+        Validation loss at the epoch where the controller stopped.
+        This is the loss of the model that the controller leaves in
+        place (no rollback). For the reported performance of the
+        stopping model, use this value, not best_validation_loss.
+
     epochs_executed : int
         Total number of replay epochs performed.
+
+    stop_reason : str
+        Why consolidation ended.
     """
 
     history: list[ReplayMetrics]
     validation_losses: list[float]
     best_validation_loss: float
     best_epoch: int
+    final_validation_loss: float
     epochs_executed: int
     stop_reason: str
 
@@ -50,14 +60,20 @@ class GoCLSController:
           ↓
         held-out generalization improves?
           ├── yes → continue
-          └── no  → stop after patience is exhausted and restore the
-                    generalization-optimal student checkpoint
+          └── no  → stop after patience is exhausted
 
     This regulates the *amount* of consolidation.  It is not a per-memory
     SNR threshold: in Go-CLS, SNR specifies the predictability of the teacher
     relationship and the optimal replay duration is inferred from
     generalization dynamics.  The held-out set is therefore a modelling
     supervisor, never replayed to the student.
+
+    Important: the controller does **not** roll back to the best
+    validation checkpoint. It stops at the epoch where patience is
+    exhausted and leaves the model at that state. This matches the
+    real-time behaviour of the biological system, which cannot rewind
+    to an earlier snapshot. `best_validation_loss` is logged as metadata
+    but the model actually returned is the stopping-epoch model.
 
     Parameters
     ----------
@@ -154,6 +170,9 @@ class GoCLSController:
         The validation set is never passed to the learning rule.
         It only determines whether further consolidation is
         beneficial.
+
+        No rollback is performed. The model at the stopping epoch is
+        the model that is returned.
         """
 
         history = []
@@ -161,8 +180,7 @@ class GoCLSController:
 
         best_validation_loss = np.inf
         best_epoch = 0
-        best_w1 = self.replay.student.W1.copy()
-        best_w2 = self.replay.student.W2.copy()
+        final_validation_loss = np.inf
 
         epochs_without_improvement = 0
 
@@ -192,6 +210,8 @@ class GoCLSController:
                 validation_loss
             )
 
+            final_validation_loss = validation_loss
+
             # -------------------------------------------------
             # 3. Check for improvement.
             # -------------------------------------------------
@@ -208,8 +228,6 @@ class GoCLSController:
                 )
 
                 best_epoch = epoch
-                best_w1 = self.replay.student.W1.copy()
-                best_w2 = self.replay.student.W2.copy()
 
                 epochs_without_improvement = 0
 
@@ -224,16 +242,17 @@ class GoCLSController:
                 stop_reason = "validation_patience_exceeded"
                 break
 
-        # The Go-CLS consolidation result is the point of best estimated
-        # generalization, not the later checkpoint at which patience expired.
-        self.replay.student.W1[...] = best_w1
-        self.replay.student.W2[...] = best_w2
+        # NOTE: no rollback. The student remains at the stopping-epoch
+        # weights. `best_validation_loss` and `best_epoch` are logged
+        # as metadata, but the model that will be evaluated downstream
+        # is the model at `epochs_executed`.
 
         return ConsolidationResult(
             history=history,
             validation_losses=validation_losses,
             best_validation_loss=best_validation_loss,
             best_epoch=best_epoch,
+            final_validation_loss=final_validation_loss,
             epochs_executed=len(history),
             stop_reason=stop_reason,
         )
