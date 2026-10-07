@@ -174,7 +174,7 @@ def train_one(rule_name, seed, n_examples_per_object):
 
 
 def main():
-    seeds = list(range(42, 52))       # 10 seeds
+    seeds = list(range(42, 72))       
 
     summary_rows = []
     history_rows = []

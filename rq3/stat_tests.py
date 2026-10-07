@@ -34,7 +34,7 @@ def main():
     )
 
     print("=" * 72)
-    print("RQ3 — WILCOXON SIGNED-RANK TESTS (paired by seed, n=10)")
+    print("RQ3 — WILCOXON SIGNED-RANK TESTS (paired by seed, n=30)")
     print("=" * 72)
     print()
 

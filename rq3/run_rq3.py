@@ -135,7 +135,7 @@ def train_one(rule_name, seed, max_epochs=300, batch_size=16,
 
 def main():
     rules = ["gradient_descent", "chl", "qpc", "hebbian", "anti_hebbian"]
-    seeds = list(range(42, 52))     # 10 seeds
+    seeds = list(range(42, 72))     # 30 seeds
 
     summary_rows = []
     history_rows = []
