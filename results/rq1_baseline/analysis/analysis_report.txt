@@ -15,7 +15,7 @@ Acquisition target per run:
 MAIN PERFORMANCE SUMMARY
 --------------------------------------------------
 Gradient Descent: mean relative improvement = 15.774973% (SD = 3.142951%)
-CHL: mean relative improvement = 38.815251% (SD = 14.765402%)
+CHL: mean relative improvement = 38.785733% (SD = 14.807983%)
 QPC: mean relative improvement = 4.881530% (SD = 1.886222%)
 Pure Hebbian: mean relative improvement = 10.217899% (SD = 2.318862%)
 Anti-Hebbian: mean relative improvement = 10.161925% (SD = 2.305740%)
