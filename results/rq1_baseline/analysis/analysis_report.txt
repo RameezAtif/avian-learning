@@ -9,21 +9,21 @@ ACQUISITION CRITERION
 Acquisition target per run:
     target = initial - fraction * (initial - best_achievable)
     fraction         = 0.5
-    best_achievable  = 0.1729135661
+    best_achievable  = 0.1942130091
     min_consecutive  = 3
 
 MAIN PERFORMANCE SUMMARY
 --------------------------------------------------
-Gradient Descent: mean relative improvement = 15.774973% (SD = 3.142951%)
-CHL: mean relative improvement = 38.785733% (SD = 14.807983%)
-QPC: mean relative improvement = 4.881530% (SD = 1.886222%)
-Pure Hebbian: mean relative improvement = 10.217899% (SD = 2.318862%)
-Anti-Hebbian: mean relative improvement = 10.161925% (SD = 2.305740%)
+Gradient Descent: mean relative improvement = 15.598981% (SD = 3.259837%)
+CHL: mean relative improvement = 34.482151% (SD = 13.856992%)
+QPC: mean relative improvement = 4.873718% (SD = 1.759285%)
+Pure Hebbian: mean relative improvement = 10.152592% (SD = 2.304164%)
+Anti-Hebbian: mean relative improvement = 10.079076% (SD = 2.286146%)
 
 ACQUISITION
 --------------------------------------------------
 Gradient Descent: 0/30 successful (0.00%)
-CHL: 20/30 successful (66.67%)
+CHL: 21/30 successful (70.00%)
 QPC: 0/30 successful (0.00%)
 Pure Hebbian: 0/30 successful (0.00%)
 Anti-Hebbian: 0/30 successful (0.00%)
@@ -31,18 +31,18 @@ Anti-Hebbian: 0/30 successful (0.00%)
 STOPPING BEHAVIOUR
 --------------------------------------------------
 Gradient Descent: mean epochs = 300.00, patience stop rate = 0.00%, max epoch rate = 100.00%
-CHL: mean epochs = 289.33, patience stop rate = 6.67%, max epoch rate = 93.33%
+CHL: mean epochs = 288.73, patience stop rate = 6.67%, max epoch rate = 93.33%
 QPC: mean epochs = 300.00, patience stop rate = 0.00%, max epoch rate = 100.00%
 Pure Hebbian: mean epochs = 300.00, patience stop rate = 0.00%, max epoch rate = 100.00%
 Anti-Hebbian: mean epochs = 300.00, patience stop rate = 0.00%, max epoch rate = 100.00%
 
 STABILITY
 --------------------------------------------------
-Gradient Descent: mean stability variance = 0.0010008813
-CHL: mean stability variance = 0.0001188962
-QPC: mean stability variance = 0.0015689178
-Pure Hebbian: mean stability variance = 0.0012681249
-Anti-Hebbian: mean stability variance = 0.0012717787
+Gradient Descent: mean stability variance = 0.0005158346
+CHL: mean stability variance = 0.0001097130
+QPC: mean stability variance = 0.0009001632
+Pure Hebbian: mean stability variance = 0.0006878668
+Anti-Hebbian: mean stability variance = 0.0006913407
 
 PAIRED STATISTICAL TESTS
 --------------------------------------------------

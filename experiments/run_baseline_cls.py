@@ -37,9 +37,11 @@ def main():
             print(f"[{count}/{total}] {rule} seed={seed}")
 
             # patience = max_epochs → never triggers early stop
+            # use_snr_gating = False → uniform replay (CLS, not Go-CLS)
             config = replace(
                 ExperimentConfig(seed=seed),
                 patience=10**6,
+                use_snr_gating=False,
             )
 
             result = run_experiment(

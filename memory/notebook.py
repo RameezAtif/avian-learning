@@ -18,11 +18,17 @@ class NotebookMemory:
 
     y : np.ndarray
         Target output associated with this memory.
+
+    snr : float
+        Signal-to-noise ratio of the experience. Used to weight
+        replay probability under the Go-CLS framework (Sun et al. 2023):
+        high-SNR (predictable) experiences are replayed more often.
     """
 
     pattern: np.ndarray
     x: np.ndarray
     y: np.ndarray
+    snr: float = 1.0
 
 
 @dataclass
@@ -71,12 +77,12 @@ class SparseHopfieldNotebook:
         4. Association between Notebook memories and experiences
 
     In the main Go-CLS experiment, the notebook is an episodic store whose
-    contents are faithfully reactivated (``replay_stored_batch``).  The
-    recurrent Hopfield dynamics remain a retrieval-quality diagnostic only:
-    random-cue retrieval can preferentially return a subset of stored
-    associations, so it is not used to choose training experiences unless
-    that retrieval process is itself the subject of an explicitly separate
-    experiment.
+    contents are reactivated (``replay_stored_batch``). Replay sampling is
+    weighted by the SNR of each stored experience, implementing the
+    predictability-gated consolidation mechanism from Sun et al. (2023):
+    high-SNR experiences (e.g. pristine tutor samples) are replayed more
+    often than low-SNR ones (e.g. noisy practice samples). If no SNR
+    information is provided, replay is uniform.
 
     Parameters
     ----------
@@ -122,9 +128,6 @@ class SparseHopfieldNotebook:
         self.rng = np.random.default_rng(seed)
 
         # Sparse Hopfield recurrent weights.
-        #
-        # W_notebook[i, j] describes the influence of
-        # Notebook unit j on Notebook unit i.
         self.recurrent_weights = np.zeros(
             (notebook_dim, notebook_dim),
             dtype=float,
@@ -136,7 +139,6 @@ class SparseHopfieldNotebook:
     def _create_sparse_pattern(self) -> np.ndarray:
         """
         Create a sparse binary Notebook pattern.
-
         Exactly `active_units` units are set to 1.
         """
 
@@ -159,16 +161,10 @@ class SparseHopfieldNotebook:
         self,
         x: np.ndarray,
         y: np.ndarray,
+        snr: float = 1.0,
     ) -> NotebookMemory:
         """
         One-shot encode an experience.
-
-        A new sparse binary pattern is created and associated
-        with the input-target pair.
-
-        Hebbian outer-product learning is then used to make
-        the sparse pattern an attractor of the recurrent
-        Hopfield network.
 
         Parameters
         ----------
@@ -177,6 +173,10 @@ class SparseHopfieldNotebook:
 
         y : np.ndarray
             Target experience.
+
+        snr : float
+            Signal-to-noise ratio of the experience. Defaults to 1.0.
+            Under the Go-CLS framework this determines replay probability.
 
         Returns
         -------
@@ -197,11 +197,8 @@ class SparseHopfieldNotebook:
         pattern = self._create_sparse_pattern()
 
         # Hebbian Hopfield storage:
-        #
-        # W <- W + ξ ξ^T
-        #
-        # We remove the diagonal so that a neuron does not
-        # directly reinforce itself.
+        #   W <- W + ξ ξ^T
+        # Remove diagonal so a neuron does not reinforce itself.
         self.recurrent_weights += np.outer(
             pattern,
             pattern,
@@ -216,6 +213,7 @@ class SparseHopfieldNotebook:
             pattern=pattern.copy(),
             x=x.copy(),
             y=y.copy(),
+            snr=float(snr),
         )
 
         self.memories.append(memory)
@@ -226,9 +224,22 @@ class SparseHopfieldNotebook:
         self,
         x: np.ndarray,
         y: np.ndarray,
+        snr_values: np.ndarray | None = None,
     ) -> None:
         """
         Encode a batch of teacher experiences.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            Inputs with shape (N, input_dim).
+
+        y : np.ndarray
+            Targets with shape (N,).
+
+        snr_values : np.ndarray or None
+            Per-sample SNR values with shape (N,). If None, all
+            experiences are assigned snr = 1.0 and replay is uniform.
         """
 
         if x.ndim != 2:
@@ -247,10 +258,19 @@ class SparseHopfieldNotebook:
                 "of examples."
             )
 
+        if snr_values is not None:
+            snr_values = np.asarray(snr_values, dtype=float)
+            if snr_values.shape != (x.shape[0],):
+                raise ValueError(
+                    "snr_values must have shape (N,)."
+                )
+
         for index in range(x.shape[0]):
+            snr = 1.0 if snr_values is None else float(snr_values[index])
             self.encode(
                 x=x[index],
                 y=np.asarray(y[index]),
+                snr=snr,
             )
 
     def _activate(
@@ -259,8 +279,6 @@ class SparseHopfieldNotebook:
     ) -> np.ndarray:
         """
         Perform one synchronous sparse Hopfield update.
-
-        The largest `active_units` activations become active.
         """
 
         activation = (
@@ -288,20 +306,7 @@ class SparseHopfieldNotebook:
     ) -> ReplayResult:
         """
         Retrieve a stored memory through Hopfield dynamics.
-
-        Parameters
-        ----------
-        cycles : int
-            Number of recurrent update cycles.
-
-        initial_state : np.ndarray or None
-            Initial Notebook activity. If None, a random sparse
-            pattern is created.
-
-        Returns
-        -------
-        ReplayResult
-            Retrieved memory and associated experience.
+        Used as a diagnostic only.
         """
 
         if len(self.memories) == 0:
@@ -332,11 +337,9 @@ class SparseHopfieldNotebook:
 
             state = self._make_sparse(state)
 
-        # Synchronous recurrent updates.
         for _ in range(cycles):
             state = self._activate(state)
 
-        # Find the closest stored memory.
         similarities = np.array(
             [
                 self._similarity(
@@ -373,10 +376,8 @@ class SparseHopfieldNotebook:
         cycles: int = 9,
     ) -> list[ReplayResult]:
         """
-        Retrieve several memories for one replay epoch.
-
-        Memories are retrieved independently using random
-        sparse initial Notebook activity.
+        Retrieve several memories using Hopfield dynamics.
+        Diagnostic only.
         """
 
         if num_replays <= 0:
@@ -396,29 +397,62 @@ class SparseHopfieldNotebook:
         return results
 
     def replay_stored_batch(self, num_replays: int) -> list[ReplayResult]:
-        """Uniformly reactivate stored experiences with faithful recall.
+        """
+        Reactivate stored experiences with SNR-gated sampling.
 
-        This operationalizes the Go-CLS assumption of accurate notebook
-        recall. Sampling is uniform over stored episodes; it deliberately
-        avoids the retrieval bias observed with random-cue Hopfield dynamics.
-        The dynamics method remains available as a diagnostic, but is not an
-        unverified source of training samples.
+        Sampling probability is proportional to the SNR of each stored
+        experience. This implements the Go-CLS consolidation rule from
+        Sun et al. (2023): high-predictability (high-SNR) experiences
+        are replayed more frequently than low-SNR noise.
+
+        If all SNRs are equal (or no SNR was provided), this reduces to
+        uniform sampling.
         """
         if num_replays <= 0:
             raise ValueError("num_replays must be greater than 0.")
         if not self.memories:
             raise RuntimeError("Cannot retrieve from an empty Notebook.")
-        indices = self.rng.integers(0, len(self.memories), size=num_replays)
-        return [ReplayResult(
-            pattern=self.memories[int(i)].pattern.copy(), x=self.memories[int(i)].x.copy(),
-            y=self.memories[int(i)].y.copy(), memory_index=int(i), similarity=1.0,
-        ) for i in indices]
+
+        # Build SNR weight vector
+        snr_weights = np.array(
+            [m.snr for m in self.memories], dtype=float,
+        )
+
+        # Guard against non-positive or zero-sum weights
+        snr_weights = np.clip(snr_weights, a_min=1e-12, a_max=None)
+        total = snr_weights.sum()
+
+        if total <= 0 or not np.isfinite(total):
+            # Fall back to uniform sampling
+            probabilities = None
+        else:
+            probabilities = snr_weights / total
+
+        # Sample indices with SNR weighting
+        if probabilities is None:
+            indices = self.rng.integers(
+                0, len(self.memories), size=num_replays,
+            )
+        else:
+            indices = self.rng.choice(
+                len(self.memories),
+                size=num_replays,
+                p=probabilities,
+                replace=True,
+            )
+
+        return [
+            ReplayResult(
+                pattern=self.memories[int(i)].pattern.copy(),
+                x=self.memories[int(i)].x.copy(),
+                y=self.memories[int(i)].y.copy(),
+                memory_index=int(i),
+                similarity=1.0,
+            )
+            for i in indices
+        ]
 
     def __len__(self) -> int:
-        """
-        Return the number of stored memories.
-        """
-
         return len(self.memories)
 
     def _make_sparse(
@@ -449,8 +483,7 @@ class SparseHopfieldNotebook:
         pattern_b: np.ndarray,
     ) -> float:
         """
-        Calculate normalized binary overlap between two
-        Notebook patterns.
+        Normalized binary overlap between two patterns.
         """
 
         return float(

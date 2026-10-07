@@ -41,6 +41,8 @@ class ExperimentConfig:
     # is a retrieval-bias diagnostic, not a primary experimental condition.
     replay_mode: str = "stored"
 
+    use_snr_gating: bool = True
+
     gradient_clip: float | None = 1.0
 
     seed: int = 42

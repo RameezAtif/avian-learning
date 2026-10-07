@@ -159,9 +159,22 @@ def run_experiment(
         seed=config.seed,
     )
 
+    # Build SNR array matching training data order.
+    # Go-CLS (Sun et al. 2023): replay is weighted by predictability.
+    # Tutor samples (high SNR) replayed more than practice samples (low SNR).
+    # When gating is disabled (CLS baseline), all samples get equal weight.
+    if config.use_snr_gating:
+        snr_values = np.concatenate([
+            np.full(len(tutor.x), config.tutor_snr),
+            np.full(len(practice.x), config.practice_snr),
+        ])
+    else:
+        snr_values = None
+
     notebook.encode_batch(
         x=train_x,
         y=train_y,
+        snr_values=snr_values,
     )
 
     # ---------------------------------------------------------
