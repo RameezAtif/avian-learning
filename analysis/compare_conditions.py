@@ -167,20 +167,17 @@ def plot_grouped_bar(df):
     width = 0.25
 
     for i, cond in enumerate(CONDITIONS):
-        means, stds = [], []
+        means = []
         for rule in RULES:
             vals = df[
                 (df["condition"] == cond) & (df["learning_rule"] == rule)
             ]["relative_improvement_pct"].dropna()
             means.append(vals.mean())
-            stds.append(vals.std(ddof=1))
 
         ax.bar(
             x + (i - 1) * width,
             means,
             width,
-            yerr=stds,
-            capsize=3,
             label=cond,
             color=CONDITION_COLORS[cond],
             alpha=0.85,
@@ -189,7 +186,7 @@ def plot_grouped_bar(df):
     ax.set_xticks(x)
     ax.set_xticklabels([LABELS[r] for r in RULES])
     ax.set_ylabel("Relative improvement (%)")
-    ax.set_title("Improvement per rule across conditions (mean ± SD, n=30)")
+    ax.set_title("Improvement per rule across conditions (mean, n=30)")
     ax.legend()
     ax.grid(True, axis="y", alpha=0.3)
     ax.axhline(0, color="gray", linewidth=0.8)

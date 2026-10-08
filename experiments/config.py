@@ -24,10 +24,10 @@ class ExperimentConfig:
     replay_cycles: int = 9
     replays_per_epoch: int = 64
 
-    max_epochs: int = 300
+    max_epochs: int = 500
 
     patience: int = 20
-    min_delta: float = 1e-6
+    min_delta: float = 1e-4
 
     learning_rate: float = 0.01
 
