@@ -1,19 +1,23 @@
 """
-Comparison figures designed around the three specific questions:
-
-Q1: CLS vs Go-CLS       — does gating help?
-Q2: Online vs CLS       — does batch replay help over streaming?
-Q3: Online vs Go-CLS    — same question, full pipeline
+Compare four conditions: Online (matched), Online (natural), CLS, Go-CLS.
 
 Produces:
-    schematic.png                       — pipeline diagram for the 3 conditions
-    paired_scatter_q1.png               — CLS vs Go-CLS, one panel per rule
-    paired_scatter_q2.png               — Online vs CLS
-    paired_scatter_q3.png               — Online vs Go-CLS
-    slope_plot_q1.png                   — one seed per line, CLS -> Go-CLS
-    slope_plot_q2.png                   — Online -> CLS
-    slope_plot_q3.png                   — Online -> Go-CLS
-    forest_q1_q2_q3.png                 — summary of all three questions
+    Individual figures (one per condition):
+        online_matched_improvement.png
+        online_natural_improvement.png
+        cls_improvement.png
+        go_cls_improvement.png
+
+    Joint figures:
+        joint_improvement_comparison.png   (grouped bar, 4 conditions)
+        joint_improvement_heatmap.png      (rules x conditions)
+        joint_slope_chart.png              (one line per rule)
+        joint_ranking_slope.png            (rank flip)
+        forest_q1_q2_q3.png                (summary with bootstrap CI)
+
+    Tables:
+        joint_summary.csv
+        joint_statistical_tests.csv
 
 Run:
     python analysis/compare_conditions_v2.py
@@ -29,18 +33,22 @@ if str(PROJECT_ROOT) not in sys.path:
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from matplotlib.patches import FancyArrowPatch
 from scipy import stats
 
 
+# Paths
 RESULTS_DIR = PROJECT_ROOT / "results"
-ONLINE_FILE = RESULTS_DIR / "baseline_online" / "baseline_online_summary.csv"
-CLS_FILE = RESULTS_DIR / "baseline_cls" / "baseline_cls_summary.csv"
-GOCLS_FILE = RESULTS_DIR / "rq1_baseline" / "rq1_summary.csv"
+
+# The four conditions
+ONLINE_MATCHED_FILE = RESULTS_DIR / "baseline_online_matched" / "baseline_online_matched_summary.csv"
+ONLINE_NATURAL_FILE = RESULTS_DIR / "baseline_online" / "baseline_online_summary.csv"
+CLS_FILE            = RESULTS_DIR / "baseline_cls" / "baseline_cls_summary.csv"
+GOCLS_FILE          = RESULTS_DIR / "rq1_baseline" / "rq1_summary.csv"
+
 OUTPUT_DIR = RESULTS_DIR / "comparison_v2"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+# Rules
 RULES = ["gradient_descent", "chl", "qpc", "hebbian", "anti_hebbian"]
 LABELS = {
     "gradient_descent": "GD",
@@ -56,8 +64,12 @@ COLORS = {
     "hebbian": "tab:red",
     "anti_hebbian": "tab:purple",
 }
+
+# Four conditions with distinct colors
+CONDITIONS = ["Online (matched)", "Online (natural)", "CLS", "Go-CLS"]
 CONDITION_COLORS = {
-    "Online": "#4477AA",
+    "Online (matched)": "#88CCEE",
+    "Online (natural)": "#4477AA",
     "CLS": "#CC6677",
     "Go-CLS": "#228833",
 }
@@ -81,215 +93,300 @@ def _ensure_improvement(df):
     return df
 
 
-def load_paired():
-    """Load all three conditions, merge on (learning_rule, seed)."""
-    online = _ensure_improvement(pd.read_csv(ONLINE_FILE))
-    online = online[["learning_rule", "seed", "relative_improvement_pct"]]
-    online = online.rename(columns={"relative_improvement_pct": "online"})
+def load_all():
+    frames = []
+
+    om = _ensure_improvement(pd.read_csv(ONLINE_MATCHED_FILE))
+    om["condition"] = "Online (matched)"
+    frames.append(om)
+
+    on = _ensure_improvement(pd.read_csv(ONLINE_NATURAL_FILE))
+    on["condition"] = "Online (natural)"
+    frames.append(on)
 
     cls = _ensure_improvement(pd.read_csv(CLS_FILE))
-    cls = cls[["learning_rule", "seed", "relative_improvement_pct"]]
-    cls = cls.rename(columns={"relative_improvement_pct": "cls"})
+    cls["condition"] = "CLS"
+    frames.append(cls)
 
     gocls = _ensure_improvement(pd.read_csv(GOCLS_FILE))
-    gocls = gocls[["learning_rule", "seed", "relative_improvement_pct"]]
-    gocls = gocls.rename(columns={"relative_improvement_pct": "gocls"})
+    gocls["condition"] = "Go-CLS"
+    frames.append(gocls)
 
-    merged = online.merge(cls, on=["learning_rule", "seed"])
-    merged = merged.merge(gocls, on=["learning_rule", "seed"])
-    return merged
+    return pd.concat(frames, ignore_index=True)
 
 
 # =====================================================================
-# Schematic — pipeline diagram for 3 conditions
+# Individual figures — bar chart with error bars
 # =====================================================================
 
-def plot_schematic():
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
+def plot_individual(df, condition):
+    sub = df[df["condition"] == condition]
 
-    configs = [
-        ("Online", "#4477AA", [
-            "Stream samples",
-            "1 sample  →  update",
-            "Discard sample",
-            "Repeat",
-        ]),
-        ("CLS", "#CC6677", [
-            "Store batch in notebook",
-            "Replay N samples",
-            "1 batch  →  update",
-            "Repeat (no gating)",
-        ]),
-        ("Go-CLS", "#228833", [
-            "Store batch in notebook",
-            "Replay N samples",
-            "1 batch  →  update",
-            "Stop when validation plateaus",
-        ]),
-    ]
+    fig, ax = plt.subplots(figsize=(9, 5))
 
-    for ax, (name, color, steps) in zip(axes, configs):
-        ax.set_xlim(0, 10)
-        ax.set_ylim(0, 10)
-        ax.axis("off")
-        ax.set_title(name, fontsize=14, fontweight="bold", color=color)
+    means, stds, labels, colors = [], [], [], []
+    for rule in RULES:
+        vals = sub[sub["learning_rule"] == rule][
+            "relative_improvement_pct"
+        ].dropna().values
+        means.append(vals.mean() if len(vals) > 0 else np.nan)
+        stds.append(vals.std(ddof=1) if len(vals) > 1 else 0.0)
+        labels.append(LABELS[rule])
+        colors.append(COLORS[rule])
 
-        y = 8.5
-        for step in steps:
-            box = mpatches.FancyBboxPatch(
-                (0.5, y - 0.6), 9, 1.2,
-                boxstyle="round,pad=0.08",
-                facecolor=color, alpha=0.2, edgecolor=color, linewidth=2,
-            )
-            ax.add_patch(box)
-            ax.text(5, y, step, ha="center", va="center", fontsize=10)
-            y -= 1.9
-
-    fig.suptitle(
-        "Three training conditions — pipeline overview",
-        fontsize=15, fontweight="bold",
+    x = np.arange(len(RULES))
+    ax.bar(
+        x, means, yerr=stds, capsize=5,
+        color=colors, alpha=0.75, edgecolor="black", linewidth=0.8,
     )
-    fig.tight_layout()
-    out = OUTPUT_DIR / "schematic.png"
-    fig.savefig(out, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    print(f"Saved: {out}")
 
-
-# =====================================================================
-# Paired scatter — one panel per rule, y=x diagonal
-# =====================================================================
-
-def plot_paired_scatter(merged, cond_a, cond_b, title, fname):
-    """
-    Rows = 5 rules. Each panel:
-        x-axis = condition A improvement
-        y-axis = condition B improvement
-        one dot per seed
-        diagonal y=x
-        annotate mean shift
-    """
-    fig, axes = plt.subplots(1, 5, figsize=(20, 4.5), sharey=False)
-
-    for ax, rule in zip(axes, RULES):
-        sub = merged[merged["learning_rule"] == rule]
-        x = sub[cond_a].values
-        y = sub[cond_b].values
-
-        # Common range
-        lo = min(x.min(), y.min(), 0) - 5
-        hi = max(x.max(), y.max()) + 5
-
-        ax.plot([lo, hi], [lo, hi], color="gray", linestyle="--", linewidth=1)
-
-        ax.scatter(x, y, s=60, alpha=0.7, color=COLORS[rule],
-                   edgecolor="black", linewidth=0.6)
-
-        # Mean shift arrow
-        xm, ym = x.mean(), y.mean()
-        ax.plot(xm, ym, marker="D", color="black", markersize=8, zorder=5)
-        ax.annotate(
-            f"Δ={ym - xm:+.1f}",
-            (xm, ym),
-            textcoords="offset points",
-            xytext=(10, -10),
-            fontsize=10, fontweight="bold",
+    for xi, m in zip(x, means):
+        ax.text(
+            xi, m + 1.5, f"{m:.1f}",
+            ha="center", va="bottom", fontsize=10,
         )
 
-        ax.set_xlim(lo, hi)
-        ax.set_ylim(lo, hi)
-        ax.set_xlabel(f"{cond_a} improvement (%)")
-        ax.set_ylabel(f"{cond_b} improvement (%)")
-        ax.set_title(LABELS[rule])
-        ax.grid(True, alpha=0.3)
-
-    fig.suptitle(title, fontsize=14, fontweight="bold")
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels)
+    ax.set_ylabel("Relative improvement (%)")
+    ax.set_title(f"{condition} — mean improvement per rule (n=30 seeds)")
+    ax.grid(True, axis="y", alpha=0.3)
+    ax.axhline(0, color="gray", linewidth=0.8)
     fig.tight_layout()
+
+    fname = f"{condition.lower().replace('-', '_').replace(' ', '_').replace('(', '').replace(')', '')}_improvement.png"
     out = OUTPUT_DIR / fname
-    fig.savefig(out, dpi=300, bbox_inches="tight")
+    fig.savefig(out, dpi=300)
     plt.close(fig)
     print(f"Saved: {out}")
 
 
 # =====================================================================
-# Slope plot — one line per seed
+# Joint figures
 # =====================================================================
 
-def plot_slope(merged, cond_a, cond_b, title, fname):
-    """
-    Rows = 5 rules. Each panel:
-        x-axis = [cond_a, cond_b]
-        one line per seed connecting its two values
-        bold black line = mean across seeds
-    """
-    fig, axes = plt.subplots(1, 5, figsize=(18, 5), sharey=True)
+def plot_grouped_bar(df):
+    """Grouped bar chart: 5 rules on x, 4 bars per rule."""
+    fig, ax = plt.subplots(figsize=(13, 5.5))
 
-    x_positions = [0, 1]
+    x = np.arange(len(RULES))
+    n_conds = len(CONDITIONS)
+    total_width = 0.8
+    width = total_width / n_conds
 
-    for ax, rule in zip(axes, RULES):
-        sub = merged[merged["learning_rule"] == rule]
+    for i, cond in enumerate(CONDITIONS):
+        means, stds = [], []
+        for rule in RULES:
+            vals = df[
+                (df["condition"] == cond) & (df["learning_rule"] == rule)
+            ]["relative_improvement_pct"].dropna()
+            means.append(vals.mean())
+      
 
-        for _, row in sub.iterrows():
-            ax.plot(
-                x_positions,
-                [row[cond_a], row[cond_b]],
-                color=COLORS[rule], alpha=0.3, linewidth=1,
+        offset = (i - (n_conds - 1) / 2) * width
+        ax.bar(
+            x + offset,
+            means,
+            width,
+            label=cond,
+            color=CONDITION_COLORS[cond],
+            alpha=0.9,
+            edgecolor="black",
+            linewidth=0.5,
+        )
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([LABELS[r] for r in RULES])
+    ax.set_ylabel("Relative improvement (%)")
+    ax.set_title(
+        "Improvement per rule across four conditions (mean ± SD, n=30)"
+    )
+    ax.legend(loc="upper right")
+    ax.grid(True, axis="y", alpha=0.3)
+    ax.axhline(0, color="gray", linewidth=0.8)
+    fig.tight_layout()
+
+    out = OUTPUT_DIR / "joint_improvement_comparison.png"
+    fig.savefig(out, dpi=300)
+    plt.close(fig)
+    print(f"Saved: {out}")
+
+
+def plot_heatmap(df):
+    """Heatmap: rules x conditions, cell = mean improvement."""
+    pivot = df.pivot_table(
+        index="learning_rule",
+        columns="condition",
+        values="relative_improvement_pct",
+        aggfunc="mean",
+    )
+    pivot = pivot.loc[RULES, CONDITIONS]
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    im = ax.imshow(pivot.values, cmap="YlGnBu", aspect="auto")
+
+    ax.set_xticks(np.arange(len(CONDITIONS)))
+    ax.set_xticklabels(CONDITIONS, rotation=15, ha="right")
+    ax.set_yticks(np.arange(len(RULES)))
+    ax.set_yticklabels([LABELS[r] for r in RULES])
+
+    mid = float(np.nanmean(pivot.values))
+    for i in range(pivot.shape[0]):
+        for j in range(pivot.shape[1]):
+            val = pivot.values[i, j]
+            ax.text(
+                j, i, f"{val:.1f}",
+                ha="center", va="center",
+                color="white" if val > mid else "black",
+                fontsize=10,
             )
 
-        # Mean line
-        mean_a = sub[cond_a].mean()
-        mean_b = sub[cond_b].mean()
+    ax.set_title("Mean improvement (%) by rule and condition")
+    fig.colorbar(im, ax=ax, label="Improvement (%)")
+    fig.tight_layout()
+
+    out = OUTPUT_DIR / "joint_improvement_heatmap.png"
+    fig.savefig(out, dpi=300)
+    plt.close(fig)
+    print(f"Saved: {out}")
+
+
+def plot_slope_chart(df):
+    """Slope chart: one line per rule across four conditions."""
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    x_positions = np.arange(len(CONDITIONS))
+
+    for rule in RULES:
+        means = []
+        for cond in CONDITIONS:
+            vals = df[
+                (df["condition"] == cond) & (df["learning_rule"] == rule)
+            ]["relative_improvement_pct"].dropna()
+            means.append(vals.mean() if len(vals) > 0 else np.nan)
+
         ax.plot(
-            x_positions, [mean_a, mean_b],
-            color="black", linewidth=3, marker="D",
-            markersize=10, zorder=10,
+            x_positions, means,
+            marker="o", markersize=9,
+            linewidth=2.2,
+            label=LABELS[rule],
+            color=COLORS[rule],
         )
 
-        ax.set_xticks(x_positions)
-        ax.set_xticklabels([cond_a, cond_b])
-        ax.set_title(LABELS[rule])
-        ax.grid(True, alpha=0.3)
-        ax.axhline(0, color="gray", linewidth=0.8)
+        for xi, m in zip(x_positions, means):
+            ax.annotate(
+                f"{m:.1f}",
+                (xi, m),
+                textcoords="offset points",
+                xytext=(8, 6),
+                fontsize=8,
+                color=COLORS[rule],
+            )
 
-    axes[0].set_ylabel("Relative improvement (%)")
-    fig.suptitle(title, fontsize=14, fontweight="bold")
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels(CONDITIONS, rotation=15, ha="right")
+    ax.set_xlim(-0.35, len(CONDITIONS) - 0.65)
+    ax.set_ylabel("Mean improvement (%)")
+    ax.set_title(
+        "Each rule's improvement across the four conditions"
+    )
+    ax.legend(loc="center left", bbox_to_anchor=(1.02, 0.5))
+    ax.grid(True, alpha=0.3)
+    ax.axhline(0, color="gray", linewidth=0.8)
     fig.tight_layout()
-    out = OUTPUT_DIR / fname
+
+    out = OUTPUT_DIR / "joint_slope_chart.png"
     fig.savefig(out, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved: {out}")
 
 
-# =====================================================================
-# Forest plot — summary of all three questions
-# =====================================================================
+def plot_ranking_slope(df):
+    """Ranking per condition; lines connect rule positions."""
+    fig, ax = plt.subplots(figsize=(10, 6))
 
-def plot_forest(merged):
+    x_positions = np.arange(len(CONDITIONS))
+    rankings = {rule: [] for rule in RULES}
+
+    for cond in CONDITIONS:
+        sub = df[df["condition"] == cond]
+        means = {}
+        for rule in RULES:
+            vals = sub[sub["learning_rule"] == rule][
+                "relative_improvement_pct"
+            ].dropna()
+            means[rule] = vals.mean()
+        ordered = sorted(means.items(), key=lambda kv: -kv[1])
+        for rank_idx, (rule, _) in enumerate(ordered, start=1):
+            rankings[rule].append(rank_idx)
+
+    for rule in RULES:
+        ax.plot(
+            x_positions, rankings[rule],
+            marker="o", markersize=10,
+            linewidth=2.4,
+            label=LABELS[rule],
+            color=COLORS[rule],
+        )
+        for xi, r in zip(x_positions, rankings[rule]):
+            ax.annotate(
+                LABELS[rule],
+                (xi, r),
+                textcoords="offset points",
+                xytext=(10, -2),
+                fontsize=9,
+                color=COLORS[rule],
+            )
+
+    ax.set_xticks(x_positions)
+    ax.set_xticklabels(CONDITIONS, rotation=15, ha="right")
+    ax.set_xlim(-0.4, len(CONDITIONS) - 0.3)
+    ax.invert_yaxis()
+    ax.set_yticks([1, 2, 3, 4, 5])
+    ax.set_ylabel("Rank (1 = best improvement)")
+    ax.set_title("Rule ranking by condition")
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+
+    out = OUTPUT_DIR / "joint_ranking_slope.png"
+    fig.savefig(out, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved: {out}")
+
+
+def plot_forest(df):
     """
-    For each rule and each condition pair, compute mean difference and
-    bootstrap 95% CI. Plot as a forest plot: rules on y-axis, three
-    comparisons as coloured markers.
+    Forest plot: for each rule, show mean differences for key comparisons.
     """
     comparisons = [
-        ("cls", "gocls", "CLS → Go-CLS", "tab:orange"),
-        ("online", "cls", "Online → CLS", "tab:blue"),
-        ("online", "gocls", "Online → Go-CLS", "tab:green"),
+        ("Online (matched)", "CLS", "Matched online vs CLS", "tab:blue"),
+        ("Online (matched)", "Go-CLS", "Matched online vs Go-CLS", "tab:green"),
+        ("CLS", "Go-CLS", "CLS vs Go-CLS", "tab:orange"),
     ]
 
-    fig, ax = plt.subplots(figsize=(9, 6))
+    fig, ax = plt.subplots(figsize=(10, 6))
 
-    n_rules = len(RULES)
-    y_ticks = np.arange(n_rules)
-    offset = 0.22
+    y_ticks = np.arange(len(RULES))
+    offset = 0.25
 
     for i, (a, b, label, color) in enumerate(comparisons):
         means, los, his = [], [], []
         for rule in RULES:
-            sub = merged[merged["learning_rule"] == rule]
-            diffs = sub[b].values - sub[a].values
+            sub = df[df["learning_rule"] == rule]
+            va = sub[sub["condition"] == a].set_index("seed")[
+                "relative_improvement_pct"
+            ]
+            vb = sub[sub["condition"] == b].set_index("seed")[
+                "relative_improvement_pct"
+            ]
+            common = va.index.intersection(vb.index)
+            if len(common) == 0:
+                means.append(np.nan); los.append(np.nan); his.append(np.nan)
+                continue
+
+            diffs = (vb.loc[common] - va.loc[common]).values
             mean = diffs.mean()
 
-            # Bootstrap CI
             rng = np.random.default_rng(42)
             boots = [
                 rng.choice(diffs, size=len(diffs), replace=True).mean()
@@ -302,10 +399,13 @@ def plot_forest(merged):
             his.append(hi)
 
         y_positions = y_ticks + (i - 1) * offset
+        valid = ~np.isnan(means)
         ax.errorbar(
-            means, y_positions,
-            xerr=[np.array(means) - np.array(los),
-                  np.array(his) - np.array(means)],
+            np.array(means)[valid], y_positions[valid],
+            xerr=[
+                (np.array(means) - np.array(los))[valid],
+                (np.array(his) - np.array(means))[valid],
+            ],
             fmt="o", color=color, label=label,
             capsize=4, markersize=8,
         )
@@ -313,8 +413,10 @@ def plot_forest(merged):
     ax.axvline(0, color="black", linestyle="--", linewidth=1.2)
     ax.set_yticks(y_ticks)
     ax.set_yticklabels([LABELS[r] for r in RULES])
-    ax.set_xlabel("Mean improvement difference (pp)")
-    ax.set_title("Mean difference per comparison, with 95% bootstrap CI")
+    ax.set_xlabel("Mean improvement difference (B − A, pp)")
+    ax.set_title(
+        "Mean difference per comparison, with 95% bootstrap CI"
+    )
     ax.legend(loc="best")
     ax.grid(True, alpha=0.3)
     ax.invert_yaxis()
@@ -330,45 +432,76 @@ def plot_forest(merged):
 # Tables
 # =====================================================================
 
-def summary_by_question(merged):
-    """
-    For each question and each rule, report:
-      mean difference, std, Wilcoxon p, Bonferroni p, direction
-    """
-    comparisons = [
-        ("cls", "gocls", "Q1: CLS vs Go-CLS"),
-        ("online", "cls", "Q2: Online vs CLS"),
-        ("online", "gocls", "Q3: Online vs Go-CLS"),
-    ]
-
+def summary_table(df):
     rows = []
-    for a, b, label in comparisons:
+    for cond in CONDITIONS:
         for rule in RULES:
-            sub = merged[merged["learning_rule"] == rule]
-            diffs = sub[b].values - sub[a].values
+            vals = df[
+                (df["condition"] == cond) & (df["learning_rule"] == rule)
+            ]["relative_improvement_pct"].dropna()
+
+            rows.append({
+                "condition": cond,
+                "learning_rule": rule,
+                "learning_rule_label": LABELS[rule],
+                "n": len(vals),
+                "mean": vals.mean(),
+                "std": vals.std(ddof=1),
+                "median": vals.median(),
+                "min": vals.min(),
+                "max": vals.max(),
+            })
+
+    out_df = pd.DataFrame(rows)
+    out_df.to_csv(OUTPUT_DIR / "joint_summary.csv", index=False)
+    print(f"Saved: {OUTPUT_DIR / 'joint_summary.csv'}")
+    return out_df
+
+
+def statistical_tests(df):
+    """Paired Wilcoxon for each rule across key comparisons."""
+    comparisons = [
+        ("Online (matched)", "CLS"),
+        ("Online (matched)", "Go-CLS"),
+        ("CLS", "Go-CLS"),
+        ("Online (matched)", "Online (natural)"),
+    ]
+    rows = []
+
+    for rule in RULES:
+        for a, b in comparisons:
+            sub = df[df["learning_rule"] == rule]
+            va = sub[sub["condition"] == a].set_index("seed")[
+                "relative_improvement_pct"
+            ]
+            vb = sub[sub["condition"] == b].set_index("seed")[
+                "relative_improvement_pct"
+            ]
+            common = va.index.intersection(vb.index)
+            if len(common) < 2:
+                continue
+
+            diffs = (vb.loc[common] - va.loc[common]).values
 
             try:
-                _, p = stats.wilcoxon(diffs)
+                stat, p = stats.wilcoxon(diffs)
             except ValueError:
                 p = np.nan
 
             rows.append({
-                "question": label,
                 "learning_rule": rule,
                 "learning_rule_label": LABELS[rule],
-                "n_pairs": len(diffs),
-                "mean_diff": diffs.mean(),
-                "std_diff": diffs.std(ddof=1),
+                "condition_a": a,
+                "condition_b": b,
+                "mean_diff_b_minus_a": diffs.mean(),
+                "n_pairs": len(common),
                 "wilcoxon_p": p,
-                "direction": (
-                    "B > A" if diffs.mean() > 0 else "B < A"
-                ),
             })
 
     out = pd.DataFrame(rows)
     out["bonferroni_p"] = np.minimum(out["wilcoxon_p"] * len(out), 1.0)
-    out.to_csv(OUTPUT_DIR / "questions_summary.csv", index=False)
-    print(f"Saved: {OUTPUT_DIR / 'questions_summary.csv'}")
+    out.to_csv(OUTPUT_DIR / "joint_statistical_tests.csv", index=False)
+    print(f"Saved: {OUTPUT_DIR / 'joint_statistical_tests.csv'}")
     return out
 
 
@@ -377,62 +510,40 @@ def summary_by_question(merged):
 # =====================================================================
 
 def main():
-    print("Loading paired data...")
-    merged = load_paired()
-    print(f"  merged rows: {len(merged)}")
+    print("Loading all conditions...")
+    df = load_all()
+    print(f"  total runs: {len(df)}")
+    print(f"  conditions: {sorted(df['condition'].unique())}")
     print()
 
-    plot_schematic()
+    # Individual
+    for cond in CONDITIONS:
+        plot_individual(df, cond)
     print()
 
-    plot_paired_scatter(
-        merged, "cls", "gocls",
-        "Q1 — Does Go-CLS gating help over CLS? "
-        "(points near the diagonal = no difference)",
-        "paired_scatter_q1.png",
-    )
-    plot_paired_scatter(
-        merged, "online", "cls",
-        "Q2 — Does batch replay help over streaming? "
-        "(Online vs CLS)",
-        "paired_scatter_q2.png",
-    )
-    plot_paired_scatter(
-        merged, "online", "gocls",
-        "Q3 — Does batch replay help over streaming? "
-        "(Online vs Go-CLS)",
-        "paired_scatter_q3.png",
-    )
+    # Joint
+    plot_grouped_bar(df)
+    plot_heatmap(df)
+    plot_slope_chart(df)
+    plot_ranking_slope(df)
+    plot_forest(df)
     print()
 
-    plot_slope(
-        merged, "cls", "gocls",
-        "Q1 — CLS → Go-CLS. "
-        "If lines are flat, gating does nothing.",
-        "slope_plot_q1.png",
-    )
-    plot_slope(
-        merged, "online", "cls",
-        "Q2 — Online → CLS. "
-        "If lines slope up, batch replay helps.",
-        "slope_plot_q2.png",
-    )
-    plot_slope(
-        merged, "online", "gocls",
-        "Q3 — Online → Go-CLS.",
-        "slope_plot_q3.png",
-    )
+    # Tables
+    summary = summary_table(df)
+    tests = statistical_tests(df)
     print()
 
-    plot_forest(merged)
-    print()
-
-    summary = summary_by_question(merged)
-    print()
-    print("=" * 90)
-    print("SUMMARY OF THE THREE QUESTIONS")
-    print("=" * 90)
+    print("=" * 72)
+    print("SUMMARY TABLE")
+    print("=" * 72)
     print(summary.to_string(index=False))
+    print()
+
+    print("=" * 72)
+    print("STATISTICAL TESTS")
+    print("=" * 72)
+    print(tests.to_string(index=False))
 
 
 if __name__ == "__main__":
