@@ -28,6 +28,7 @@ RESULTS.mkdir(parents=True, exist_ok=True)
 
 def main():
     rows = []
+    history_rows = []
     total = len(RULES) * len(SEEDS)
     count = 0
 
@@ -36,7 +37,6 @@ def main():
             count += 1
             print(f"[{count}/{total}] {rule} seed={seed}")
 
-            # patience = max_epochs → never triggers early stop
             config = replace(
                 ExperimentConfig(seed=seed),
                 patience=10**6,
@@ -60,8 +60,21 @@ def main():
                 "stop_reason": result.stop_reason,
             })
 
+            # Save per-epoch losses
+            for ep in range(len(result.replay_losses)):
+                history_rows.append({
+                    "learning_rule": rule,
+                    "seed": seed,
+                    "epoch": ep + 1,
+                    "train_loss": float(result.replay_losses[ep]),
+                    "validation_loss": float(result.validation_losses[ep]),
+                })
+
     df = pd.DataFrame(rows)
     df.to_csv(RESULTS / "baseline_cls_summary.csv", index=False)
+    pd.DataFrame(history_rows).to_csv(
+        RESULTS / "baseline_cls_histories.csv", index=False,
+    )
 
     print()
     print(df.groupby("learning_rule")["relative_improvement_pct"].agg(

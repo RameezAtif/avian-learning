@@ -1,0 +1,16 @@
+\begin{table}[H]
+\centering
+\caption{Final training and validation loss per rule per training regime. Each cell shows \textcolor{online}{Online} / \textcolor{cls}{CLS} / \textcolor{gocls}{Go-CLS}. Values are the mean over the last 10\% of training epochs, averaged across 30 seeds.}
+\label{tab:summary_losses}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Rule} & \textbf{Training Loss} & \textbf{Validation Loss} \\
+\midrule
+Gradient Descent & \textcolor{online}{0.005} / \textcolor{cls}{0.341} / \textcolor{gocls}{0.341} & \textcolor{online}{0.465} / \textcolor{cls}{\textbf{0.355}} / \textcolor{gocls}{\textbf{0.355}} \\
+CHL & \textcolor{online}{0.004} / \textcolor{cls}{0.043} / \textcolor{gocls}{0.071} & \textcolor{online}{1.937} / \textcolor{cls}{\textbf{0.250}} / \textcolor{gocls}{0.252} \\
+QPC & \textcolor{online}{0.556} / \textcolor{cls}{0.524} / \textcolor{gocls}{0.523} & \textcolor{online}{0.480} / \textcolor{cls}{\textbf{0.442}} / \textcolor{gocls}{0.442} \\
+Pure Hebbian & \textcolor{online}{0.056} / \textcolor{cls}{0.436} / \textcolor{gocls}{0.436} & \textcolor{online}{\textbf{0.140}} / \textcolor{cls}{0.401} / \textcolor{gocls}{0.401} \\
+Anti-Hebbian & \textcolor{online}{0.052} / \textcolor{cls}{0.438} / \textcolor{gocls}{0.438} & \textcolor{online}{\textbf{0.138}} / \textcolor{cls}{0.402} / \textcolor{gocls}{0.402} \\
+\bottomrule
+\end{tabular}
+\end{table}

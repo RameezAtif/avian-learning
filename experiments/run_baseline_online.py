@@ -23,12 +23,18 @@ from learning.chl import ContrastiveHebbianRule
 from learning.gradient_descent import GradientDescentRule
 from learning.plasticity import ContinuousPlasticityRule
 from models.student import Student
-from metrics.acquisition import compute_all_acquisition_epochs
 
 
 RULES = ["gradient_descent", "chl", "qpc", "hebbian", "anti_hebbian"]
 SEEDS = list(range(42, 72))
-RESULTS = PROJECT_ROOT / "results" / "baseline_online"
+
+# MAX_EPOCHS = 5 for matched (500 updates), 500 for natural (50,000 updates)
+MAX_EPOCHS = 5
+
+if MAX_EPOCHS <= 10:
+    RESULTS = PROJECT_ROOT / "results" / "baseline_online_matched"
+else:
+    RESULTS = PROJECT_ROOT / "results" / "baseline_online"
 RESULTS.mkdir(parents=True, exist_ok=True)
 
 
@@ -70,6 +76,10 @@ def create_rule(name, config):
     raise ValueError(name)
 
 
+def mse(y, y_hat):
+    return 0.5 * float(np.mean((y - y_hat) ** 2))
+
+
 def run_one(rule_name, seed, config):
     # Data
     teacher = create_teacher(config.input_dim, seed=seed)
@@ -100,20 +110,29 @@ def run_one(rule_name, seed, config):
     )
     rule = create_rule(rule_name, config)
 
-    # Streaming: shuffle and present one at a time
-    rng = np.random.default_rng(seed)
-    order = rng.permutation(len(train_x))
-
     val_losses = []
+    train_losses = []
     initial_val = None
 
-    for epoch in range(config.max_epochs):
-        # One pass = one epoch through all data, one sample at a time
+    for epoch in range(MAX_EPOCHS):
+        rng = np.random.default_rng(seed * 1000 + epoch)
+        order = rng.permutation(len(train_x))
+
+        # Accumulate training loss across the epoch
+        epoch_loss_sum = 0.0
+        n_seen = 0
+
         for idx in order:
-            x_single = train_x[idx:idx+1]      # shape (1, input_dim)
-            y_single = train_y[idx:idx+1]      # shape (1,)
+            x_single = train_x[idx:idx+1]
+            y_single = train_y[idx:idx+1]
 
             out = student.forward(x_single)
+
+            # Pre-update training loss
+            loss = mse(y_single, out.y_hat)
+            epoch_loss_sum += loss
+            n_seen += 1
+
             upd = rule.calculate_update(
                 x=x_single, y=y_single,
                 h=out.h_ff, y_hat=out.y_hat,
@@ -123,14 +142,17 @@ def run_one(rule_name, seed, config):
             if config.update_w2:
                 student.W2 += upd.delta_w2
 
-        # Validate after each epoch
+        train_losses.append(epoch_loss_sum / n_seen)
+
+        # Validation
         val_out = student.forward(val.x)
-        vloss = 0.5 * float(np.mean((val.y - val_out.y_hat) ** 2))
+        vloss = mse(val.y, val_out.y_hat)
         if initial_val is None:
             initial_val = vloss
         val_losses.append(vloss)
 
     val_losses = np.array(val_losses)
+    train_losses = np.array(train_losses)
     best_idx = int(np.argmin(val_losses))
 
     return {
@@ -140,28 +162,52 @@ def run_one(rule_name, seed, config):
         "best_validation_loss": float(val_losses[best_idx]),
         "best_epoch": best_idx + 1,
         "epochs_executed": len(val_losses),
-        "relative_improvement_pct": 100.0 * (1 - val_losses[best_idx] / initial_val),
+        "relative_improvement_pct": 100.0 * (
+            1 - val_losses[best_idx] / initial_val
+        ),
+        "train_losses": train_losses,
+        "val_losses": val_losses,
     }
 
 
 def main():
     config = ExperimentConfig()
-    rows = []
+    summary_rows = []
     history_rows = []
 
     total = len(RULES) * len(SEEDS)
     count = 0
+
     for rule in RULES:
         for seed in SEEDS:
             count += 1
             print(f"[{count}/{total}] {rule} seed={seed}")
-            rows.append(run_one(rule, seed, config))
+            result = run_one(rule, seed, config)
 
-    df = pd.DataFrame(rows)
-    df.to_csv(RESULTS / "baseline_online_summary.csv", index=False)
+            summary_rows.append({
+                k: v for k, v in result.items()
+                if k not in ("train_losses", "val_losses")
+            })
+
+            for ep in range(len(result["train_losses"])):
+                history_rows.append({
+                    "learning_rule": rule,
+                    "seed": seed,
+                    "epoch": ep + 1,
+                    "train_loss": float(result["train_losses"][ep]),
+                    "validation_loss": float(result["val_losses"][ep]),
+                })
+
+    pd.DataFrame(summary_rows).to_csv(
+        RESULTS / "baseline_online_summary.csv", index=False,
+    )
+    pd.DataFrame(history_rows).to_csv(
+        RESULTS / "baseline_online_histories.csv", index=False,
+    )
 
     print()
-    print(df.groupby("learning_rule")["relative_improvement_pct"].agg(
+    print(pd.DataFrame(summary_rows).groupby(
+        "learning_rule")["relative_improvement_pct"].agg(
         ["mean", "std", "count"]))
     print(f"Saved: {RESULTS}")
 
