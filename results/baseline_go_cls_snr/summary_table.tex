@@ -1,0 +1,18 @@
+\begin{table}[H]
+\centering
+\caption{Final training and validation loss per rule. Values are the mean of the last 10\% of epochs, averaged across 30 seeds. Lower is better.}
+\label{tab:go_cls_snr_summary}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Rule} & \multicolumn{2}{c}{\textbf{CLS}} & \multicolumn{2}{c}{\textbf{Go-CLS empirical}} & \multicolumn{2}{c}{\textbf{Go-CLS SNR}} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7}
+& Train & Val & Train & Val & Train & Val \\
+\midrule
+Gradient Descent & nan & 0.349 & nan & 0.349 & 0.255 & 0.352 \\
+CHL & nan & 0.246 & nan & 0.249 & 0.053 & 0.260 \\
+QPC & nan & 0.441 & nan & 0.441 & 0.478 & 0.442 \\
+Pure Hebbian & nan & 0.398 & nan & 0.398 & 0.365 & 0.399 \\
+Anti-Hebbian & nan & 0.398 & nan & 0.398 & 0.368 & 0.400 \\
+\bottomrule
+\end{tabular}
+\end{table}
