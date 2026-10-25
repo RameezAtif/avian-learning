@@ -86,25 +86,44 @@ def plot_improvement_distribution(df_sum):
     plt.close()
 
 def plot_loss_trajectories(df_hist):
-    """Graph 2: Facet grid of validation loss trajectories over time."""
+    """
+    Facet grid of validation loss trajectories over time.
+    Uses median aggregator (not mean), no CI band, and marks 500 epochs.
+    """
     sns.set_theme(style="ticks", context="paper", font_scale=1.1)
-    
+
     g = sns.FacetGrid(
-        df_hist, col="learning_rule", col_wrap=3, height=4, aspect=1.2, 
-        sharey=False, despine=True
+        df_hist, col="learning_rule", col_wrap=3,
+        height=4, aspect=1.2,
+        sharey=False, despine=True,
     )
     g.map_dataframe(
-        sns.lineplot, x="epoch", y="validation_loss", hue="Architecture", 
-        palette=['#4E79A7', '#E15759'], errorbar=('ci', 95), linewidth=2
+        sns.lineplot,
+        x="epoch",
+        y="validation_loss",
+        hue="Architecture",
+        palette=['#4E79A7', '#E15759'],
+        estimator="median",
+        errorbar=None,
+        linewidth=2,
     )
-    
-    g.set_axis_labels("Epoch", "Validation Loss (MSE)")
+
+    for ax in g.axes.flatten():
+        if ax is None:
+            continue
+        ax.axvline(500, color="black", linestyle="--", alpha=0.4, linewidth=1)
+        ax.set_xlim(0, 1500)
+
+    g.set_axis_labels("Epoch", "Validation Loss (median)")
     g.set_titles(col_template="{col_name}", fontweight='bold')
     g.add_legend(title="Architecture")
-    
+
     plt.subplots_adjust(top=0.9)
-    g.fig.suptitle('Speed of Acquisition: Validation Loss Trajectories by Learning Rule', fontweight='bold', fontsize=14)
-    
+    g.fig.suptitle(
+        'Validation Loss Trajectories (median across seeds; dashed line = 500 epochs)',
+        fontweight='bold', fontsize=14,
+    )
+
     plt.savefig(OUTPUT_DIR / "02_loss_trajectories.png", dpi=300)
     plt.close()
 

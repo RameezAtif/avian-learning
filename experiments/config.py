@@ -24,12 +24,12 @@ class ExperimentConfig:
     replay_cycles: int = 9
     replays_per_epoch: int = 64
 
-    max_epochs: int = 500 #5 for online
+    max_epochs: int = 1500 #5 for online
 
-    patience: int = 20
+    patience: int = 100
     min_delta: float = 1e-4
 
-    learning_rate: float = 0.01
+    learning_rate: float = 0.05
 
     acquisition_improvement_fraction: float = 0.50
 

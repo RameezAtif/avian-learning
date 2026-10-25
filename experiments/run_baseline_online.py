@@ -4,6 +4,10 @@ Baseline A — Online learning.
 Streaming mode: one data point at a time, train, discard.
 No notebook, no replay, no Go-CLS gating.
 
+Logs at cumulative gradient step counts so that early-step behaviour
+is visible on a log x-axis, and the initial state (step 1) is captured
+before any training.
+
 Run:
     python experiments/run_baseline_online.py
 """
@@ -29,12 +33,10 @@ RULES = ["gradient_descent", "chl", "qpc", "hebbian", "anti_hebbian"]
 SEEDS = list(range(42, 72))
 
 # MAX_EPOCHS = 5 for matched (500 updates), 500 for natural (50,000 updates)
-MAX_EPOCHS = 5
+MAX_EPOCHS = 1500
 
-if MAX_EPOCHS <= 10:
-    RESULTS = PROJECT_ROOT / "results" / "baseline_online_matched"
-else:
-    RESULTS = PROJECT_ROOT / "results" / "baseline_online"
+
+RESULTS = PROJECT_ROOT / "results" / "baseline_online"
 RESULTS.mkdir(parents=True, exist_ok=True)
 
 
@@ -80,6 +82,17 @@ def mse(y, y_hat):
     return 0.5 * float(np.mean((y - y_hat) ** 2))
 
 
+def _should_log(step):
+    """Return True if we should record a snapshot at this step count."""
+    if step <= 500:
+        return True                            # dense early logging
+    if step <= 5000:
+        return step % 10 == 0                  # every 10 steps
+    if step <= 50000:
+        return step % 100 == 0                 # every 100 steps
+    return step % 1000 == 0                    # every 1000 steps
+
+
 def run_one(rule_name, seed, config):
     # Data
     teacher = create_teacher(config.input_dim, seed=seed)
@@ -110,28 +123,33 @@ def run_one(rule_name, seed, config):
     )
     rule = create_rule(rule_name, config)
 
-    val_losses = []
-    train_losses = []
-    initial_val = None
+    # Log initial state (before any training)
+    initial_val_out = student.forward(val.x)
+    initial_val_loss = mse(val.y, initial_val_out.y_hat)
+    initial_train_out = student.forward(train_x[:1])
+    initial_train_loss = mse(train_y[:1], initial_train_out.y_hat)
 
-    for epoch in range(MAX_EPOCHS):
+    log_steps = [1]
+    train_losses = [initial_train_loss]
+    val_losses = [initial_val_loss]
+
+    cumulative_steps = 0
+    epoch_loss_sum = 0.0
+    n_seen = 0
+
+    for epoch in range(config.max_epochs):
         rng = np.random.default_rng(seed * 1000 + epoch)
         order = rng.permutation(len(train_x))
 
-        # Accumulate training loss across the epoch
-        epoch_loss_sum = 0.0
-        n_seen = 0
-
         for idx in order:
-            x_single = train_x[idx:idx+1]
-            y_single = train_y[idx:idx+1]
+            x_single = train_x[idx:idx + 1]
+            y_single = train_y[idx:idx + 1]
 
             out = student.forward(x_single)
-
-            # Pre-update training loss
             loss = mse(y_single, out.y_hat)
             epoch_loss_sum += loss
             n_seen += 1
+            cumulative_steps += 1
 
             upd = rule.calculate_update(
                 x=x_single, y=y_single,
@@ -142,29 +160,29 @@ def run_one(rule_name, seed, config):
             if config.update_w2:
                 student.W2 += upd.delta_w2
 
-        train_losses.append(epoch_loss_sum / n_seen)
+            if _should_log(cumulative_steps):
+                val_out = student.forward(val.x)
+                log_steps.append(cumulative_steps)
+                train_losses.append(epoch_loss_sum / n_seen)
+                val_losses.append(mse(val.y, val_out.y_hat))
 
-        # Validation
-        val_out = student.forward(val.x)
-        vloss = mse(val.y, val_out.y_hat)
-        if initial_val is None:
-            initial_val = vloss
-        val_losses.append(vloss)
-
-    val_losses = np.array(val_losses)
+    log_steps = np.array(log_steps)
     train_losses = np.array(train_losses)
+    val_losses = np.array(val_losses)
+
     best_idx = int(np.argmin(val_losses))
 
     return {
         "learning_rule": rule_name,
         "seed": seed,
-        "initial_validation_loss": initial_val,
+        "initial_validation_loss": float(initial_val_loss),
         "best_validation_loss": float(val_losses[best_idx]),
-        "best_epoch": best_idx + 1,
-        "epochs_executed": len(val_losses),
+        "best_step": int(log_steps[best_idx]),
+        "steps_executed": int(cumulative_steps),
         "relative_improvement_pct": 100.0 * (
-            1 - val_losses[best_idx] / initial_val
+            1 - val_losses[best_idx] / initial_val_loss
         ),
+        "log_steps": log_steps,
         "train_losses": train_losses,
         "val_losses": val_losses,
     }
@@ -186,16 +204,16 @@ def main():
 
             summary_rows.append({
                 k: v for k, v in result.items()
-                if k not in ("train_losses", "val_losses")
+                if k not in ("log_steps", "train_losses", "val_losses")
             })
 
-            for ep in range(len(result["train_losses"])):
+            for i in range(len(result["log_steps"])):
                 history_rows.append({
                     "learning_rule": rule,
                     "seed": seed,
-                    "epoch": ep + 1,
-                    "train_loss": float(result["train_losses"][ep]),
-                    "validation_loss": float(result["val_losses"][ep]),
+                    "step": int(result["log_steps"][i]),
+                    "train_loss": float(result["train_losses"][i]),
+                    "validation_loss": float(result["val_losses"][i]),
                 })
 
     pd.DataFrame(summary_rows).to_csv(

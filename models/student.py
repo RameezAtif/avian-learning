@@ -71,9 +71,11 @@ class Student:
         #
         # Shape:
         # (hidden_dim, input_dim)
+        INIT_STD = 0.05
+
         self.W1 = rng.normal(
             loc=0.0,
-            scale=1.0 / np.sqrt(input_dim),
+            scale=INIT_STD,
             size=(hidden_dim, input_dim),
         )
 
@@ -85,7 +87,7 @@ class Student:
         # (1, hidden_dim)
         self.W2 = rng.normal(
             loc=0.0,
-            scale=1.0 / np.sqrt(hidden_dim),
+            scale=INIT_STD,
             size=(1, hidden_dim),
         )
 

@@ -26,15 +26,16 @@ class DeepStudent:
             raise ValueError("Dimensions must be greater than 0.")
         
         rng = np.random.default_rng(seed)
+        INIT_STD = 0.05
         
         # W1: Brainstem to Cortex (Plastic layer)
-        self.W1 = rng.normal(loc=0.0, scale=1.0 / np.sqrt(input_dim), size=(cortex_dim, input_dim))
+        self.W1 = rng.normal(loc=0.0, scale=INIT_STD, size=(cortex_dim, input_dim))
         
         # W2: Cortex to Readout (GD layer)
-        self.W2 = rng.normal(loc=0.0, scale=1.0 / np.sqrt(cortex_dim), size=(readout_dim, cortex_dim))
+        self.W2 = rng.normal(loc=0.0, scale=INIT_STD, size=(readout_dim, cortex_dim))
         
         # W3: Readout to Final Target (GD layer)
-        self.W3 = rng.normal(loc=0.0, scale=1.0 / np.sqrt(readout_dim), size=(1, readout_dim))
+        self.W3 = rng.normal(loc=0.0, scale=INIT_STD, size=(1, readout_dim))
 
     def get_effective_w2(self) -> np.ndarray:
         """

@@ -937,18 +937,27 @@ def save_figure(filename):
 def aggregate_history(histories, metric):
     """
     Aggregate a history metric across seeds for each learning rule and epoch.
+    Uses median instead of mean — robust to variable-length runs where
+    patience stops seeds at different epochs.
     """
     return (
         histories
         .groupby(["learning_rule", "epoch"])[metric]
-        .agg(["mean", "std", "count"])
+        .agg(
+            median="median",
+            q25=lambda x: x.quantile(0.25),
+            q75=lambda x: x.quantile(0.75),
+            n="count",
+        )
         .reset_index()
     )
 
 
 def plot_validation_learning_curves(histories, output_dir):
     """
-    Mean validation loss across seeds, with ±1 standard deviation.
+    Median validation loss across seeds, with IQR band.
+    Cropped at 1500 epochs. Vertical line at 500 marks the
+    rapid-acquisition window.
     """
     plt.figure(figsize=(10, 6))
 
@@ -956,26 +965,25 @@ def plot_validation_learning_curves(histories, output_dir):
 
     for rule in ALL_RULES:
         data = aggregated[aggregated["learning_rule"] == rule]
-
         if data.empty:
             continue
 
         x = data["epoch"].to_numpy()
-        mean = data["mean"].to_numpy()
-        std = data["std"].fillna(0).to_numpy()
+        med = data["median"].to_numpy()
+        q25 = data["q25"].to_numpy()
+        q75 = data["q75"].to_numpy()
 
-        plt.plot(x, mean, label=rule)
-        plt.fill_between(
-            x,
-            mean - std,
-            mean + std,
-            alpha=0.15,
-        )
+        plt.plot(x, med, label=rule)
+        plt.fill_between(x, q25, q75, alpha=0.15)
+
+    plt.axvline(500, color="black", linestyle="--", alpha=0.5,
+                label="500-epoch mark (rapid window)")
+    plt.xlim(0, 1500)
 
     plt.xlabel("Epoch")
-    plt.ylabel("Validation Loss")
-    plt.title("Validation Learning Curves")
-    plt.legend()
+    plt.ylabel("Validation Loss (median, IQR band)")
+    plt.title("Validation Learning Curves (median across seeds)")
+    plt.legend(loc="upper right")
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
 
@@ -988,7 +996,7 @@ def plot_validation_learning_curves(histories, output_dir):
 
 def plot_replay_learning_curves(histories, output_dir):
     """
-    Mean replay loss across seeds, with ±1 standard deviation.
+    Median replay (training) loss across seeds, with IQR band.
     """
     plt.figure(figsize=(10, 6))
 
@@ -996,26 +1004,25 @@ def plot_replay_learning_curves(histories, output_dir):
 
     for rule in ALL_RULES:
         data = aggregated[aggregated["learning_rule"] == rule]
-
         if data.empty:
             continue
 
         x = data["epoch"].to_numpy()
-        mean = data["mean"].to_numpy()
-        std = data["std"].fillna(0).to_numpy()
+        med = data["median"].to_numpy()
+        q25 = data["q25"].to_numpy()
+        q75 = data["q75"].to_numpy()
 
-        plt.plot(x, mean, label=rule)
-        plt.fill_between(
-            x,
-            mean - std,
-            mean + std,
-            alpha=0.15,
-        )
+        plt.plot(x, med, label=rule)
+        plt.fill_between(x, q25, q75, alpha=0.15)
+
+    plt.axvline(500, color="black", linestyle="--", alpha=0.5,
+                label="500-epoch mark")
+    plt.xlim(0, 1500)
 
     plt.xlabel("Epoch")
-    plt.ylabel("Replay Loss")
-    plt.title("Replay Learning Curves")
-    plt.legend()
+    plt.ylabel("Replay Loss (median, IQR band)")
+    plt.title("Replay (Training) Learning Curves (median across seeds)")
+    plt.legend(loc="upper right")
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
 
