@@ -31,7 +31,7 @@ RESULTS = PROJECT_ROOT / "rq3" / "results"
 RESULTS.mkdir(parents=True, exist_ok=True)
 
 
-def make_rule(name, lr=0.01, clip=1.0):
+def make_rule(name, lr=0.05, clip=1.0):
     if name == "gradient_descent":
         return ContinuousPlasticityVector(1.0, 0.0, lr, clip)
     if name == "chl":
@@ -46,7 +46,7 @@ def make_rule(name, lr=0.01, clip=1.0):
     raise ValueError(name)
 
 
-def train_one(rule_name, seed, max_epochs=300, batch_size=16,
+def train_one(rule_name, seed, max_epochs=1500, batch_size=16,
               tutor_snr=20.0, practice_snr=3.0, hidden_dim=32):
 
     rng = np.random.default_rng(seed)

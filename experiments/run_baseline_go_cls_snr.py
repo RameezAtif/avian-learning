@@ -24,7 +24,7 @@ Produces:
     results/baseline_go_cls_snr_lownoise/statistical_tests.csv
 
 Run:
-    python experiments/run_baseline_go_cls_snr_lownoise.py
+    python experiments/run_baseline_go_cls_snr.py
 """
 
 from pathlib import Path
@@ -74,8 +74,8 @@ CONDITION_COLORS = {
 }
 
 SEEDS = list(range(42, 72))
-MAX_EPOCHS = 500
-PATIENCE = 20
+MAX_EPOCHS = 1500
+PATIENCE = 100
 MIN_DELTA = 1e-6
 BATCH_SIZE = 64
 
